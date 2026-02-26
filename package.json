@@ -25,12 +25,12 @@
     "drizzle-orm": "^0.45.1",
     "inngest": "^3.52.3",
     "lucide-react": "^0.454.0",
-    "next": "15.0.0",
+    "next": "16.0.0",
     "next-auth": "^4.24.13",
     "pg": "^8.18.0",
     "postgres": "^3.4.8",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
     "recharts": "^2.13.0",
     "stripe": "^20.3.1",
     "ulid": "^3.0.2",
@@ -38,10 +38,11 @@
   },
   "devDependencies": {
     "@types/node": "25.3.0",
-    "@types/react": "19.2.14",
+    "@types/react": "19.0.0",
     "autoprefixer": "^10.4.0",
+    "baseline-browser-mapping": "^2.10.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
-    "typescript": "5.6.3"
+    "typescript": "^5.8.0"
   }
 }
