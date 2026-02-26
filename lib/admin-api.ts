@@ -14,6 +14,7 @@ export interface AdminUser {
   createdAt: Date | string;
   updatedAt?: Date | string;
   role?: string;
+  status?: string;
   isAdmin?: boolean;
   workspaceCount?: number;
 }
@@ -29,6 +30,7 @@ export interface AdminClip {
   projectId?: string;
   workspaceId?: string;
   jobId?: string;
+  score?: number;
   createdAt: Date | string;
   updatedAt?: Date | string;
   project?: {
@@ -49,6 +51,7 @@ export interface AdminWorkspace {
   createdAt: Date | string;
   updatedAt?: Date | string;
   memberCount?: number;
+  ownerName?: string;
   owner?: {
     id: string;
     name: string;
@@ -58,6 +61,7 @@ export interface AdminWorkspace {
     id: string;
     status: string;
     plan: string;
+    planId?: string;
   };
   credits?: number;
 }

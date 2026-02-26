@@ -69,7 +69,7 @@ export default function AdminDashboard() {
       value: analytics.overview.totalWorkspaces.toLocaleString(), 
       change: "+5.2%", 
       positive: true,
-      icon: Workspace 
+      icon: Folder 
     },
     { 
       name: "Total Clips", 

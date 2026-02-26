@@ -7,11 +7,11 @@ import { requireAdmin, isSuperAdmin } from "@/lib/auth";
 // GET - Get single user by ID
 export async function GET(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAdmin();
-    const userId = context.params.id;
+    const { id: userId } = await params;
     
     // Get user
     const user = await db
@@ -87,11 +87,11 @@ export async function GET(
 // PUT - Update user
 export async function PUT(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAdmin();
-    const userId = context.params.id;
+    const { id: userId } = await params;
     
     const body = await request.json();
     const { name, email, role, status } = body;
@@ -185,14 +185,14 @@ export async function PUT(
 // DELETE - Delete user
 export async function DELETE(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireAdmin();
-    const userId = context.params.id;
+    const { id: userId } = await params;
     
     // Prevent self-deletion
-    if (session.user.id === userId) {
+    if ((session.user as any).id === userId) {
       return NextResponse.json(
         { error: "Cannot delete your own account" },
         { status: 400 }
