@@ -7,11 +7,11 @@ import { requireAdmin, isSuperAdmin } from "@/lib/auth";
 // GET - Get single user by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
     await requireAdmin();
-    const userId = params.id;
+    const userId = context.params.id;
     
     // Get user
     const user = await db
@@ -87,11 +87,11 @@ export async function GET(
 // PUT - Update user
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
     await requireAdmin();
-    const userId = params.id;
+    const userId = context.params.id;
     
     const body = await request.json();
     const { name, email, role, status } = body;
@@ -185,11 +185,11 @@ export async function PUT(
 // DELETE - Delete user
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
     const session = await requireAdmin();
-    const userId = params.id;
+    const userId = context.params.id;
     
     // Prevent self-deletion
     if (session.user.id === userId) {

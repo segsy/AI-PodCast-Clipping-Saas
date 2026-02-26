@@ -335,3 +335,25 @@ export const adminAnalytics = {
     }>(`/analytics${query ? `?${query}` : ""}`);
   },
 };
+
+// Admin Activity API
+export const adminActivity = {
+  list: async (params: ListParams = {}) => {
+    const searchParams = new URLSearchParams();
+    if (params.page) searchParams.set("page", params.page.toString());
+    if (params.limit) searchParams.set("limit", params.limit.toString());
+
+    const query = searchParams.toString();
+    return fetchAPI<{
+      events: any[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+      summary: {
+        byType: Array<{ type: string; count: number }>;
+      };
+      recentActivity: Array<{ date: string; count: number }>;
+    }>(`/activity${query ? `?${query}` : ""}`);
+  },
+};
