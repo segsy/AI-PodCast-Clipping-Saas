@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     
     if (status && status !== "all") {
       const statusValue = status.toUpperCase() as "PENDING" | "RENDERING" | "READY" | "FAILED" | "ARCHIVED";
-      conditions.push(eq(clips.status, statusValue));
+      conditions.push(eq(clips.status, statusValue as typeof clips.status.enumValues[number]));
     }
     
     if (conditions.length > 0) {
