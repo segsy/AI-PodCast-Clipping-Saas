@@ -35,7 +35,13 @@ export default withAuth(
         }
         
         // Allow access to public pages
-        if (pathname === "/" || pathname.startsWith("/api/auth")) {
+        if (
+          pathname === "/" ||
+          pathname.startsWith("/api/auth") ||
+          pathname.startsWith("/resources") ||
+          pathname.startsWith("/features") ||
+          pathname.startsWith("/solutions")
+        ) {
           return true;
         }
         
