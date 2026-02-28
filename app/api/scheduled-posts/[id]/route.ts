@@ -5,13 +5,14 @@ import { eq } from "drizzle-orm";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const post = await db
       .select()
       .from(scheduledPosts)
-      .where(eq(scheduledPosts.id, params.id))
+      .where(eq(scheduledPosts.id, id))
       .limit(1);
 
     if (!post.length) {
@@ -27,9 +28,10 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const {
       title,
@@ -64,7 +66,7 @@ export async function PATCH(
     const [updatedPost] = await db
       .update(scheduledPosts)
       .set(updates)
-      .where(eq(scheduledPosts.id, params.id))
+      .where(eq(scheduledPosts.id, id))
       .returning();
 
     if (!updatedPost) {
@@ -80,12 +82,13 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const [deletedPost] = await db
       .delete(scheduledPosts)
-      .where(eq(scheduledPosts.id, params.id))
+      .where(eq(scheduledPosts.id, id))
       .returning();
 
     if (!deletedPost) {

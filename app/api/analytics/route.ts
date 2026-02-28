@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { analyticsSummary, analyticsEvents, platformEnum } from "@/db/schema";
-import { eq, and, gte, lte, sum, avg, count, desc } from "drizzle-orm";
+import { analyticsSummary, analyticsEvents } from "@/db/schema";
+import { eq, and, sql, desc } from "drizzle-orm";
 
 type Platform = "YOUTUBE" | "TIKTOK" | "INSTAGRAM" | "FACEBOOK" | "TWITTER" | "LINKEDIN" | "PINTEREST" | "SNAPCHAT";
 
@@ -9,8 +9,6 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const workspaceId = searchParams.get("workspaceId");
-    const startDate = searchParams.get("startDate");
-    const endDate = searchParams.get("endDate");
     const platform = searchParams.get("platform");
 
     if (!workspaceId) {
@@ -18,13 +16,6 @@ export async function GET(request: NextRequest) {
     }
 
     const conditions = [eq(analyticsSummary.workspaceId, workspaceId)];
-
-    if (startDate && endDate) {
-      conditions.push(
-        gte(analyticsSummary.date, new Date(startDate)),
-        lte(analyticsSummary.date, new Date(endDate))
-      );
-    }
 
     if (platform) {
       conditions.push(eq(analyticsSummary.platform, platform as Platform));
@@ -61,20 +52,6 @@ export async function GET(request: NextRequest) {
       ? ((totalLikes + totalShares + totalComments) / totalViews) * 100 
       : 0;
 
-    // Get platform breakdown
-    const platformBreakdown = await db
-      .select({
-        platform: analyticsSummary.platform,
-        totalViews: sum(analyticsSummary.totalViews),
-        totalLikes: sum(analyticsSummary.totalLikes),
-        totalShares: sum(analyticsSummary.totalShares),
-        newFollowers: sum(analyticsSummary.newFollowers),
-        totalVideos: sum(analyticsSummary.totalVideos),
-      })
-      .from(analyticsSummary)
-      .where(and(...conditions))
-      .groupBy(analyticsSummary.platform);
-
     // Get recent analytics events
     const recentEvents = await db
       .select({
@@ -100,14 +77,6 @@ export async function GET(request: NextRequest) {
         totalVideos,
         engagementRate: Math.round(engagementRate * 100) / 100,
       },
-      platformBreakdown: platformBreakdown.map((p) => ({
-        platform: p.platform,
-        totalViews: Number(p.totalViews || 0),
-        totalLikes: Number(p.totalLikes || 0),
-        totalShares: Number(p.totalShares || 0),
-        newFollowers: Number(p.newFollowers || 0),
-        totalVideos: Number(p.totalVideos || 0),
-      })),
       dailyData: summaryData,
       recentEvents,
     });
@@ -141,41 +110,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const id = `as_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const id = "as_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+    const dateStr = new Date(date).toISOString();
 
-    const [newSummary] = await db
-      .insert(analyticsSummary)
-      .values({
-        id,
-        workspaceId,
-        platform,
-        date: new Date(date),
-        totalViews: totalViews || 0,
-        totalLikes: totalLikes || 0,
-        totalShares: totalShares || 0,
-        totalComments: totalComments || 0,
-        newFollowers: newFollowers || 0,
-        avgWatchTime: avgWatchTime || 0,
-        totalVideos: totalVideos || 0,
-        engagementRate: engagementRate || 0,
-      })
-      .onConflictDoUpdate({
-        target: [analyticsSummary.workspaceId, analyticsSummary.platform, analyticsSummary.date],
-        set: {
-          totalViews,
-          totalLikes,
-          totalShares,
-          totalComments,
-          newFollowers,
-          avgWatchTime,
-          totalVideos,
-          engagementRate,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
+    // Use raw SQL for insert to avoid type issues
+    const result = await db.execute(sql`
+      INSERT INTO analytics_summary (id, workspace_id, platform, date, total_views, total_likes, total_shares, total_comments, new_followers, avg_watch_time, total_videos, engagement_rate, created_at, updated_at)
+      VALUES (${id}, ${workspaceId}, ${platform || null}, ${dateStr}, ${totalViews || 0}, ${totalLikes || 0}, ${totalShares || 0}, ${totalComments || 0}, ${newFollowers || 0}, ${avgWatchTime || 0}, ${totalVideos || 0}, ${engagementRate || 0}, NOW(), NOW())
+      ON CONFLICT (workspace_id, platform, date) DO UPDATE SET
+        total_views = ${totalViews || 0},
+        total_likes = ${totalLikes || 0},
+        total_shares = ${totalShares || 0},
+        total_comments = ${totalComments || 0},
+        new_followers = ${newFollowers || 0},
+        avg_watch_time = ${avgWatchTime || 0},
+        total_videos = ${totalVideos || 0},
+        engagement_rate = ${engagementRate || 0},
+        updated_at = NOW()
+      RETURNING *
+    `);
 
-    return NextResponse.json({ summary: newSummary }, { status: 201 });
+    return NextResponse.json({ summary: result }, { status: 201 });
   } catch (error) {
     console.error("Error creating analytics summary:", error);
     return NextResponse.json({ error: "Failed to create summary" }, { status: 500 });

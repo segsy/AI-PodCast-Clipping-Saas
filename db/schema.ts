@@ -774,7 +774,7 @@ export const analyticsSummary = pgTable("analytics_summary", {
     .notNull()
     .references(() => workspaces.id, { onDelete: "cascade" }),
   platform: platformEnum("platform"),
-  date: date("date").notNull(),
+  date: timestamp("date", { withTimezone: true }).notNull(),
   totalViews: bigint("total_views", { mode: "number" }).notNull().default(0),
   totalLikes: bigint("total_likes", { mode: "number" }).notNull().default(0),
   totalShares: bigint("total_shares", { mode: "number" }).notNull().default(0),

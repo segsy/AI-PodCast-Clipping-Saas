@@ -343,9 +343,9 @@ export default function CalendarPage() {
                         <p style={{ fontWeight: 500, color: "white", marginBottom: "4px" }}>{post.title}</p>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "var(--text-muted)" }}>
                           <CalendarView size={14} />
-                          <span>{post.date}</span>
+                          <span>{new Date(post.scheduledAt).toLocaleDateString()}</span>
                           <Clock size={14} />
-                          <span>{post.time}</span>
+                          <span>{new Date(post.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                           <span style={{
                             padding: "2px 8px",
                             backgroundColor: post.status === "published" ? "var(--success)20" : "var(--warning)20",
@@ -697,7 +697,7 @@ export default function CalendarPage() {
             const date = new Date(2024, 0, day);
             const isCurrentMonth = date.getMonth() === 0;
             const isToday = day === 10;
-            const hasPost = posts.some(post => new Date(post.date).getDate() === day);
+            const hasPost = posts.some(post => new Date(post.scheduledAt).getDate() === day);
 
             return (
               <div key={index} style={{
@@ -768,9 +768,9 @@ export default function CalendarPage() {
                     <p style={{ fontWeight: 500, color: "white", marginBottom: "4px" }}>{post.title}</p>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "var(--text-muted)" }}>
                       <CalendarView size={14} />
-                      <span>{post.date}</span>
+                      <span>{new Date(post.scheduledAt).toLocaleDateString()}</span>
                       <Clock size={14} />
-                      <span>{post.time}</span>
+                      <span>{new Date(post.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                   </div>
                   <span style={{
