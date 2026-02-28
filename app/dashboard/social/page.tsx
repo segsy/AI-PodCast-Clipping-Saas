@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   Users, 
   Plus, 
@@ -8,7 +8,9 @@ import {
   X, 
   CheckCircle2,
   Crown,
-  Lock
+  Lock,
+  Paperclip,
+  ChevronDown
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getCurrentSubscription } from "@/lib/billing";
@@ -29,6 +31,14 @@ export default function SocialAccountsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<string>("");
   const [connecting, setConnecting] = useState(false);
+  
+  // All Platforms dropdown state
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [selectedFilterPlatform, setSelectedFilterPlatform] = useState<string>("All Platforms");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // ProModal state
+  const [isProModalOpen, setIsProModalOpen] = useState(false);
 
   useEffect(() => {
     const checkSubscription = async () => {
@@ -45,13 +55,24 @@ export default function SocialAccountsPage() {
     checkSubscription();
   }, [router]);
 
+  // Handle click outside dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const isProUser = subscription && (subscription.planId === "pro" || subscription.planId === "business");
 
   const handleAddAccountClick = () => {
     if (isProUser) {
       setShowAddModal(true);
     } else {
-      router.push("/resources/pricing?upgrade=social");
+      setIsProModalOpen(true);
     }
   };
 
@@ -109,26 +130,158 @@ export default function SocialAccountsPage() {
           <h1 style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>Social Accounts</h1>
           <p style={{ color: "var(--text-secondary)", marginTop: "4px" }}>Manage your social media connections</p>
         </div>
-        <button 
-          onClick={handleAddAccountClick}
-          disabled={!isProUser}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "10px 20px",
-            backgroundColor: isProUser ? "var(--primary)" : "var(--surface)",
-            border: isProUser ? "none" : "1px solid var(--border)",
-            borderRadius: "8px",
-            color: isProUser ? "white" : "var(--text-muted)",
-            fontWeight: 500,
-            cursor: isProUser ? "pointer" : "not-allowed",
-            opacity: isProUser ? 1 : 0.6
-          }}
-        >
-          {isProUser ? <Plus size={18} /> : <Lock size={18} />}
-          {isProUser ? "Add Account" : "Pro Feature"}
-        </button>
+        
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          {/* All Platforms Dropdown */}
+          <div style={{ position: "relative" }} ref={dropdownRef}>
+            <button
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "10px 16px",
+                backgroundColor: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+                color: "white",
+                fontSize: "14px",
+                cursor: "pointer",
+                transition: "all 0.2s"
+              }}
+            >
+              <Paperclip size={16} style={{ color: "var(--primary)" }} />
+              {selectedFilterPlatform}
+              <ChevronDown 
+                size={14} 
+                style={{ 
+                  color: "var(--text-muted)",
+                  transform: isDropdownOpen ? "rotate(180deg)" : "rotate(0)",
+                  transition: "transform 0.2s"
+                }} 
+              />
+            </button>
+
+            {/* Dropdown Menu */}
+            {isDropdownOpen && (
+              <div style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                marginTop: "8px",
+                backgroundColor: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+                zIndex: 50,
+                overflow: "hidden"
+              }}>
+                {/* All Platforms option */}
+                <button
+                  onClick={() => {
+                    setSelectedFilterPlatform("All Platforms");
+                    setIsDropdownOpen(false);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    width: "100%",
+                    padding: "12px 16px",
+                    backgroundColor: selectedFilterPlatform === "All Platforms" ? "var(--primary)/10" : "transparent",
+                    border: "none",
+                    borderBottom: "1px solid var(--border)",
+                    color: "white",
+                    cursor: "pointer",
+                    textAlign: "left"
+                  }}
+                >
+                  <div style={{
+                    width: "32px",
+                    height: "32px",
+                    backgroundColor: "var(--primary)/20",
+                    borderRadius: "6px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center"
+                  }}>
+                    <Users size={16} style={{ color: "var(--primary)" }} />
+                  </div>
+                  <span style={{ flex: 1 }}>All Platforms</span>
+                  {selectedFilterPlatform === "All Platforms" && (
+                    <CheckCircle2 size={16} style={{ color: "var(--primary)" }} />
+                  )}
+                </button>
+                
+                {platforms.map((platform) => (
+                  <button
+                    key={platform.name}
+                    onClick={() => {
+                      setSelectedFilterPlatform(platform.name);
+                      setIsDropdownOpen(false);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      width: "100%",
+                      padding: "12px 16px",
+                      backgroundColor: selectedFilterPlatform === platform.name ? "var(--primary)/10" : "transparent",
+                      border: "none",
+                      borderBottom: platform.name !== platforms[platforms.length - 1].name ? "1px solid var(--border)" : "none",
+                      color: "white",
+                      cursor: "pointer",
+                      textAlign: "left"
+                    }}
+                  >
+                    <div style={{
+                      width: "32px",
+                      height: "32px",
+                      backgroundColor: platform.color + "20",
+                      borderRadius: "6px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "16px"
+                    }}>
+                      {platform.icon}
+                    </div>
+                    <span style={{ flex: 1 }}>{platform.name}</span>
+                    {platform.connected && (
+                      <CheckCircle2 size={16} style={{ color: "var(--success)" }} />
+                    )}
+                    {selectedFilterPlatform === platform.name && !platform.connected && (
+                      <CheckCircle2 size={16} style={{ color: "var(--primary)" }} />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Add Account Button */}
+          <button 
+            onClick={handleAddAccountClick}
+            disabled={!isProUser}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "10px 20px",
+              backgroundColor: isProUser ? "var(--primary)" : "var(--surface)",
+              border: isProUser ? "none" : "1px solid var(--border)",
+              borderRadius: "8px",
+              color: isProUser ? "white" : "var(--text-muted)",
+              fontWeight: 500,
+              cursor: isProUser ? "pointer" : "not-allowed",
+              opacity: isProUser ? 1 : 0.6
+            }}
+          >
+            {isProUser ? <Plus size={18} /> : <Lock size={18} />}
+            {isProUser ? "Add Account" : "Pro Feature"}
+          </button>
+        </div>
       </div>
 
       {/* Pro Badge */}
@@ -507,6 +660,136 @@ export default function SocialAccountsPage() {
           </div>
         </div>
       </div>
+
+      {/* ProModal for Non-Pro Users */}
+      {isProModalOpen && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.8)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000,
+          padding: "24px"
+        }}>
+          <div style={{
+            backgroundColor: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: "12px",
+            padding: "32px",
+            maxWidth: "500px",
+            width: "100%",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)"
+          }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                <div style={{
+                  width: "56px",
+                  height: "56px",
+                  backgroundColor: "var(--primary)/20",
+                  borderRadius: "12px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}>
+                  <Crown size={28} style={{ color: "var(--primary)" }} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: "24px", fontWeight: "bold", color: "white", marginBottom: "4px" }}>Add Social Accounts</h2>
+                  <p style={{ fontSize: "14px", color: "var(--text-secondary)" }}>Unlock premium connections</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsProModalOpen(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--text-muted)",
+                  cursor: "pointer",
+                  padding: "8px"
+                }}
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <p style={{ color: "var(--text-secondary)", fontSize: "14px", marginBottom: "24px" }}>
+              Connect your social accounts with Pro to access advanced features:
+            </p>
+
+            {/* Pro Platforms Grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px", marginBottom: "24px" }}>
+              {platforms.map((platform) => (
+                <button
+                  key={platform.name}
+                  onClick={() => {
+                    router.push("/resources/pricing?upgrade=social");
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    padding: "12px",
+                    backgroundColor: "var(--background)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "10px",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  <div style={{
+                    width: "40px",
+                    height: "40px",
+                    backgroundColor: platform.color + "20",
+                    borderRadius: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "20px"
+                  }}>
+                    {platform.icon}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: "14px", fontWeight: 500, color: "white", marginBottom: "2px" }}>{platform.name}</p>
+                    <p style={{ fontSize: "12px", color: "var(--primary)" }}>Pro</p>
+                  </div>
+                  <Lock size={16} style={{ color: "var(--text-muted)" }} />
+                </button>
+              ))}
+            </div>
+
+            {/* Upgrade Button */}
+            <button
+              onClick={() => router.push("/resources/pricing?upgrade=social")}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                padding: "12px 24px",
+                background: "linear-gradient(135deg, var(--primary), var(--accent))",
+                border: "none",
+                borderRadius: "10px",
+                color: "white",
+                fontSize: "16px",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "opacity 0.2s"
+              }}
+            >
+              Upgrade to Pro
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

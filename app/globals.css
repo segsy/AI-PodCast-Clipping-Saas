@@ -107,3 +107,23 @@ body {
   outline: none;
   border-color: var(--primary);
 }
+
+/* Animation utilities */
+.animate-in {
+  animation-duration: 0.2s;
+  animation-fill-mode: forwards;
+  animation-timing-function: ease-out;
+}
+
+.fade-in {
+  animation-name: fade-in;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
