@@ -11,14 +11,20 @@ import {
   X,
   CheckCircle2,
   Edit2,
-  Trash2
+  Trash2,
+  Loader2
 } from "lucide-react";
 
-const scheduledPosts = [
-  { id: 1, title: "Top 5 Podcast Growth Tips", platform: "YouTube Shorts", date: "2024-01-15", time: "09:00", status: "scheduled" },
-  { id: 2, title: "Viral Content Secrets", platform: "TikTok", date: "2024-01-16", time: "14:30", status: "scheduled" },
-  { id: 3, title: "100K Followers Journey", platform: "Instagram Reels", date: "2024-01-17", time: "18:00", status: "published" },
-];
+// Types
+interface ScheduledPost {
+  id: string;
+  title: string;
+  description?: string;
+  platform: string;
+  scheduledAt: string;
+  status: string;
+  caption?: string;
+}
 
 const platforms = [
   { name: "YouTube", icon: "📺", color: "#FF0000" },
@@ -33,9 +39,106 @@ export default function CalendarPage() {
   const [showBetaModal, setShowBetaModal] = useState(true);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showPostModal, setShowPostModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedPlatform, setSelectedPlatform] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [posts, setPosts] = useState<ScheduledPost[]>([]);
+  const [selectedPost, setSelectedPost] = useState<ScheduledPost | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Form state
+  const [formTitle, setFormTitle] = useState("");
+  const [formDescription, setFormDescription] = useState("");
+  const [formPlatform, setFormPlatform] = useState("YOUTUBE");
+  const [formScheduledDate, setFormScheduledDate] = useState("");
+  const [formScheduledTime, setFormScheduledTime] = useState("12:00");
+  const [formCaption, setFormCaption] = useState("");
+
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  const fetchPosts = async () => {
+    setIsLoading(true);
+    try {
+      const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
+      const response = await fetch(`/api/scheduled-posts?workspaceId=${workspaceId}`);
+      const data = await response.json();
+      
+      if (data.posts) {
+        setPosts(data.posts);
+      }
+    } catch (error) {
+      console.error("Failed to fetch posts:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreatePost = async () => {
+    if (!formTitle || !formPlatform || !formScheduledDate) return;
+    
+    setIsSaving(true);
+    try {
+      const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
+      const scheduledAt = new Date(`${formScheduledDate}T${formScheduledTime}:00`).toISOString();
+      
+      const response = await fetch("/api/scheduled-posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspaceId,
+          title: formTitle,
+          description: formDescription,
+          platform: formPlatform,
+          scheduledAt,
+          caption: formCaption,
+        }),
+      });
+      
+      const data = await response.json();
+      if (data.post) {
+        setPosts([...posts, data.post]);
+        setShowScheduleModal(false);
+        resetForm();
+      }
+    } catch (error) {
+      console.error("Failed to create post:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    try {
+      const response = await fetch(`/api/scheduled-posts/${postId}`, {
+        method: "DELETE",
+      });
+      
+      if (response.ok) {
+        setPosts(posts.filter(p => p.id !== postId));
+        setShowPostModal(false);
+      }
+    } catch (error) {
+      console.error("Failed to delete post:", error);
+    }
+  };
+
+  const handleViewPost = (post: ScheduledPost) => {
+    setSelectedPost(post);
+    setShowPostModal(true);
+  };
+
+  const resetForm = () => {
+    setFormTitle("");
+    setFormDescription("");
+    setFormPlatform("YOUTUBE");
+    setFormScheduledDate("");
+    setFormScheduledTime("12:00");
+    setFormCaption("");
+  };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -211,9 +314,9 @@ export default function CalendarPage() {
               </button>
             </div>
 
-            {scheduledPosts.length > 0 ? (
+            {posts.length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                {scheduledPosts.map((post) => (
+                {posts.map((post) => (
                   <div key={post.id} style={{
                     display: "flex",
                     alignItems: "center",
@@ -594,7 +697,7 @@ export default function CalendarPage() {
             const date = new Date(2024, 0, day);
             const isCurrentMonth = date.getMonth() === 0;
             const isToday = day === 10;
-            const hasPost = scheduledPosts.some(post => new Date(post.date).getDate() === day);
+            const hasPost = posts.some(post => new Date(post.date).getDate() === day);
 
             return (
               <div key={index} style={{
@@ -638,9 +741,9 @@ export default function CalendarPage() {
           <h2 style={{ fontSize: "16px", fontWeight: "600", color: "white" }}>Upcoming Schedule</h2>
         </div>
         <div style={{ padding: "16px 20px" }}>
-          {scheduledPosts.length > 0 ? (
+          {posts.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {scheduledPosts.map((post) => (
+              {posts.map((post) => (
                 <div key={post.id} style={{
                   display: "flex",
                   alignItems: "center",

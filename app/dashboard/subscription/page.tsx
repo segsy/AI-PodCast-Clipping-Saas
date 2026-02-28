@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   CreditCard, 
   Check, 
@@ -12,8 +12,10 @@ import {
   FileText,
   Download,
   Mail,
-  ChevronRight
+  ChevronRight,
+  Loader2
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 const plans = [
   {
@@ -91,8 +93,60 @@ const billingHistory = [
 ];
 
 export default function SubscriptionPage() {
-  const [currentPlan] = useState("Pro");
+  const [currentPlan, setCurrentPlan] = useState<string>("Free");
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+  const [subscription, setSubscription] = useState<any>(null);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUpgrading, setIsUpgrading] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    const fetchSubscription = async () => {
+      try {
+        // Get workspace ID from session or localStorage (in real app, this would come from auth)
+        const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
+        const response = await fetch(`/api/subscription?workspaceId=${workspaceId}`);
+        const data = await response.json();
+        
+        if (data.subscription) {
+          setSubscription(data.subscription);
+          setCurrentPlan(data.currentPlan?.name || "Free");
+        }
+        if (data.plans) {
+          setPlans(data.plans);
+        }
+      } catch (error) {
+        console.error("Failed to fetch subscription:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchSubscription();
+  }, []);
+
+  const handleUpgrade = async (planId: string) => {
+    setIsUpgrading(true);
+    try {
+      const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
+      const response = await fetch("/api/subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId, planId }),
+      });
+      
+      const data = await response.json();
+      if (data.subscription) {
+        setSubscription(data.subscription);
+        setCurrentPlan(data.plan?.name || planId);
+      }
+    } catch (error) {
+      console.error("Failed to upgrade:", error);
+    } finally {
+      setIsUpgrading(false);
+    }
+  };
 
   return (
     <div style={{ padding: "24px", maxWidth: "1400px", margin: "0 auto" }}>
