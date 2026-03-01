@@ -83,6 +83,9 @@ export default function HomePage() {
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [showPassword, setShowPassword] = useState(false);
   
+  // Modal state for each feature
+  const [activeModal, setActiveModal] = useState<string | null>(null);
+  
   // Form state
   const [formEmail, setFormEmail] = useState("");
   const [formPassword, setFormPassword] = useState("");
@@ -1022,29 +1025,30 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature, index) => (
-              <div 
+          {/* Horizontal Icon List */}
+          <div className="flex flex-wrap justify-center gap-8 mb-12">
+            {[
+              { icon: Scissors, label: "Long to Shorts", id: "long-to-shorts" },
+              { icon: Type, label: "AI Captions", id: "ai-captions" },
+              { icon: Sparkles, label: "Video Editor", id: "video-editor" },
+              { icon: Volume2, label: "Enhance Speech", id: "enhance-speech" },
+              { icon: Crop, label: "Reframe Video", id: "reframe-video" },
+              { icon: Maximize2, label: "AI Reframe", id: "ai-reframe" },
+              { icon: Film, label: "B-Roll", id: "b-roll" },
+              { icon: Layers, label: "AI B-Roll", id: "ai-b-roll" },
+              { icon: Target, label: "AI Hook", id: "ai-hook" }
+            ].map((feature, index) => (
+              <button
                 key={index}
-                className="bg-background border border-border rounded-xl p-6 hover:border-primary/50 transition-colors"
+                onClick={() => setActiveModal(feature.id)}
+                className="flex flex-col items-center gap-3 p-4 rounded-xl hover:bg-background transition-colors group"
               >
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-                  <feature.icon className="w-6 h-6 text-primary" />
+                <div className="w-16 h-16 bg-primary/10 rounded-lg flex items-center justify-center group-hover:bg-primary group-hover:scale-110 transition-all">
+                  <feature.icon className="w-8 h-8 text-primary group-hover:text-white transition-colors" />
                 </div>
-                <h3 className="text-xl font-semibold text-white mb-2">{feature.title}</h3>
-                <p className="text-text-secondary">{feature.description}</p>
-              </div>
+                <span className="text-text-secondary group-hover:text-white font-medium transition-colors">{feature.label}</span>
+              </button>
             ))}
-          </div>
-
-          <div className="text-center mt-12">
-            <Link 
-              href="/features/clipanything" 
-              className="inline-flex items-center gap-2 text-primary hover:text-primary-hover font-medium transition-colors"
-            >
-              View All Features
-              <ArrowRight className="w-4 h-4" />
-            </Link>
           </div>
         </div>
       </section>
@@ -1173,6 +1177,333 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+
+      {/* Feature Modals */}
+      {activeModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
+          onClick={() => setActiveModal(null)}
+        >
+          <div 
+            className="bg-surface border border-border rounded-2xl p-8 w-full max-w-md mx-4"
+            style={{ boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button 
+              onClick={() => setActiveModal(null)}
+              className="absolute top-4 right-4 text-text-secondary hover:text-white transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Modal Content */}
+            {activeModal === "long-to-shorts" && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-6">
+                  <Scissors className="w-8 h-8 text-primary" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-4">Long to Shorts</h2>
+                <p className="text-text-secondary mb-6">
+                  Automatically convert your long videos into engaging short clips perfect for social media.
+                </p>
+                <form className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Video URL</label>
+                    <input 
+                      type="url" 
+                      placeholder="https://example.com/video.mp4"
+                      className="w-full px-4 py-3 bg-background border border-border rounded-lg text-white placeholder-text-muted focus:outline-none focus:border-primary transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Number of Clips</label>
+                    <select className="w-full px-4 py-3 bg-background border border-border rounded-lg text-white focus:outline-none focus:border-primary transition-colors">
+                      <option>5 clips</option>
+                      <option>10 clips</option>
+                      <option>15 clips</option>
+                      <option>20 clips</option>
+                    </select>
+                  </div>
+                  <button 
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary-hover text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Generate Clips
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {activeModal === "ai-captions" && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-6">
+                  <Type className="w-8 h-8 text-primary" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-4">AI Captions</h2>
+                <p className="text-text-secondary mb-6">
+                  Generate accurate, animated captions for your videos with AI-powered technology.
+                </p>
+                <form className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Video URL</label>
+                    <input 
+                      type="url" 
+                      placeholder="https://example.com/video.mp4"
+                      className="w-full px-4 py-3 bg-background border border-border rounded-lg text-white placeholder-text-muted focus:outline-none focus:border-primary transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Language</label>
+                    <select className="w-full px-4 py-3 bg-background border border-border rounded-lg text-white focus:outline-none focus:border-primary transition-colors">
+                      <option>English</option>
+                      <option>Spanish</option>
+                      <option>French</option>
+                      <option>German</option>
+                      <option>Chinese</option>
+                    </select>
+                  </div>
+                  <button 
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary-hover text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Generate Captions
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {activeModal === "video-editor" && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-6">
+                  <Sparkles className="w-8 h-8 text-primary" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-4">Video Editor</h2>
+                <p className="text-text-secondary mb-6">
+                  Edit your videos with our AI-powered video editor for professional results.
+                </p>
+                <form className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Upload Video</label>
+                    <div className="w-full px-4 py-8 bg-background border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center text-text-secondary">
+                      <Upload className="w-8 h-8 mb-2" />
+                      <span>Click to upload or drag and drop</span>
+                    </div>
+                  </div>
+                  <button 
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary-hover text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Start Editing
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {activeModal === "enhance-speech" && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-6">
+                  <Volume2 className="w-8 h-8 text-primary" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-4">Enhance Speech</h2>
+                <p className="text-text-secondary mb-6">
+                  Improve audio quality by reducing background noise and enhancing voice clarity.
+                </p>
+                <form className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Audio File</label>
+                    <div className="w-full px-4 py-8 bg-background border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center text-text-secondary">
+                      <Upload className="w-8 h-8 mb-2" />
+                      <span>Click to upload or drag and drop</span>
+                    </div>
+                  </div>
+                  <button 
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary-hover text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Enhance Audio
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {activeModal === "reframe-video" && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-6">
+                  <Crop className="w-8 h-8 text-primary" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-4">Reframe Video</h2>
+                <p className="text-text-secondary mb-6">
+                  Resize your video for different platforms while keeping the subject in focus.
+                </p>
+                <form className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Video URL</label>
+                    <input 
+                      type="url" 
+                      placeholder="https://example.com/video.mp4"
+                      className="w-full px-4 py-3 bg-background border border-border rounded-lg text-white placeholder-text-muted focus:outline-none focus:border-primary transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Aspect Ratio</label>
+                    <select className="w-full px-4 py-3 bg-background border border-border rounded-lg text-white focus:outline-none focus:border-primary transition-colors">
+                      <option>16:9 (YouTube)</option>
+                      <option>9:16 (TikTok/Reels)</option>
+                      <option>1:1 (Instagram)</option>
+                      <option>4:5 (Portrait)</option>
+                    </select>
+                  </div>
+                  <button 
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary-hover text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Reframe Video
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {activeModal === "ai-reframe" && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-6">
+                  <Maximize2 className="w-8 h-8 text-primary" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-4">AI Reframe</h2>
+                <p className="text-text-secondary mb-6">
+                  Let AI automatically reframe your video for optimal viewing on any platform.
+                </p>
+                <form className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Video URL</label>
+                    <input 
+                      type="url" 
+                      placeholder="https://example.com/video.mp4"
+                      className="w-full px-4 py-3 bg-background border border-border rounded-lg text-white placeholder-text-muted focus:outline-none focus:border-primary transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Target Platform</label>
+                    <select className="w-full px-4 py-3 bg-background border border-border rounded-lg text-white focus:outline-none focus:border-primary transition-colors">
+                      <option>TikTok</option>
+                      <option>Instagram Reels</option>
+                      <option>YouTube Shorts</option>
+                      <option>Facebook</option>
+                    </select>
+                  </div>
+                  <button 
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary-hover text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    AI Reframe
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {activeModal === "b-roll" && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-6">
+                  <Film className="w-8 h-8 text-primary" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-4">B-Roll</h2>
+                <p className="text-text-secondary mb-6">
+                  Add professional B-roll footage to enhance your videos.
+                </p>
+                <form className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Main Video</label>
+                    <div className="w-full px-4 py-8 bg-background border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center text-text-secondary">
+                      <Upload className="w-8 h-8 mb-2" />
+                      <span>Click to upload or drag and drop</span>
+                    </div>
+                  </div>
+                  <button 
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary-hover text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Add B-Roll
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {activeModal === "ai-b-roll" && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-6">
+                  <Layers className="w-8 h-8 text-primary" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-4">AI B-Roll</h2>
+                <p className="text-text-secondary mb-6">
+                  Let AI automatically find and add relevant B-roll footage to your videos.
+                </p>
+                <form className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Video URL</label>
+                    <input 
+                      type="url" 
+                      placeholder="https://example.com/video.mp4"
+                      className="w-full px-4 py-3 bg-background border border-border rounded-lg text-white placeholder-text-muted focus:outline-none focus:border-primary transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Keywords</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g., nature, technology, business"
+                      className="w-full px-4 py-3 bg-background border border-border rounded-lg text-white placeholder-text-muted focus:outline-none focus:border-primary transition-colors"
+                    />
+                  </div>
+                  <button 
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary-hover text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Generate B-Roll
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {activeModal === "ai-hook" && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-6">
+                  <Target className="w-8 h-8 text-primary" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-4">AI Hook</h2>
+                <p className="text-text-secondary mb-6">
+                  Create attention-grabbing hooks for your videos with AI.
+                </p>
+                <form className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Video URL</label>
+                    <input 
+                      type="url" 
+                      placeholder="https://example.com/video.mp4"
+                      className="w-full px-4 py-3 bg-background border border-border rounded-lg text-white placeholder-text-muted focus:outline-none focus:border-primary transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Hook Style</label>
+                    <select className="w-full px-4 py-3 bg-background border border-border rounded-lg text-white focus:outline-none focus:border-primary transition-colors">
+                      <option>Question</option>
+                      <option>Statistic</option>
+                      <option>Story</option>
+                      <option>Surprise</option>
+                    </select>
+                  </div>
+                  <button 
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary-hover text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Generate Hook
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Auth Modal */}
       {authModalOpen && (

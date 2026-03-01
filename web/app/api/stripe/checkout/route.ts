@@ -14,8 +14,7 @@ export async function POST(request: NextRequest) {
       session = await getServerSession(authOptions);
       console.log("[STRIPE CHECKOUT] Auth result:", { 
         hasSession: !!session, 
-        sessionType: typeof session,
-        error: session?.error 
+        sessionType: typeof session
       });
     } catch (authError: any) {
       console.error("[STRIPE CHECKOUT] Auth error:", authError?.message || authError);

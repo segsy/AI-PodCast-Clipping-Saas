@@ -290,7 +290,7 @@ export default function SubscriptionPage() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "24px" }}>
-          {plans.map((plan) => (
+          {plans.map((plan: any) => (
             <div key={plan.name} style={{ 
               backgroundColor: "var(--surface)", 
               borderRadius: "16px", 
@@ -325,7 +325,7 @@ export default function SubscriptionPage() {
                 <span style={{ color: "var(--text-secondary)", fontSize: "14px" }}>/{plan.period}</span>
               </div>
               <ul style={{ listStyle: "none", padding: 0, marginBottom: "24px" }}>
-                {plan.features.map((feature, index) => (
+                {plan.features.map((feature: string, index: number) => (
                   <li key={index} style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", color: "white", fontSize: "14px" }}>
                     <div style={{ 
                       width: "20px", 
@@ -342,7 +342,7 @@ export default function SubscriptionPage() {
                     {feature}
                   </li>
                 ))}
-                {plan.notIncluded.map((feature, index) => (
+                {plan.notIncluded.map((feature: string, index: number) => (
                   <li key={index} style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", color: "var(--text-secondary)", fontSize: "14px" }}>
                     <div style={{ 
                       width: "20px", 

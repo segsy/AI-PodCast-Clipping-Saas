@@ -13,6 +13,7 @@ import {
   primaryKey,
   index,
   uniqueIndex,
+  date,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -124,6 +125,32 @@ export const resourceTypeEnum = pgEnum("resource_type", [
   "LEARNING",
   "HELP",
   "CHANGELOG",
+]);
+
+export const platformEnum = pgEnum("platform", [
+  "YOUTUBE",
+  "TIKTOK",
+  "INSTAGRAM",
+  "FACEBOOK",
+  "TWITTER",
+  "LINKEDIN",
+  "PINTEREST",
+  "SNAPCHAT",
+]);
+
+export const postStatusEnum = pgEnum("post_status", [
+  "DRAFT",
+  "SCHEDULED",
+  "PUBLISHED",
+  "FAILED",
+  "CANCELLED",
+]);
+
+export const socialAccountStatusEnum = pgEnum("social_account_status", [
+  "CONNECTED",
+  "DISCONNECTED",
+  "EXPIRED",
+  "ERROR",
 ]);
 
 // ============================================================================
@@ -673,6 +700,161 @@ export const salesTransactions = pgTable("sales_transactions", {
 }));
 
 // ============================================================================
+// 11) Social Accounts - Connected social media platforms
+// ============================================================================
+
+export const socialAccounts = pgTable("social_accounts", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+  platform: platformEnum("platform").notNull(),
+  platformAccountId: text("platform_account_id").notNull(),
+  platformUsername: text("platform_username"),
+  platformProfileUrl: text("platform_profile_url"),
+  platformProfileImage: text("platform_profile_image"),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  status: socialAccountStatusEnum("status").notNull().default("CONNECTED"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+}, (table) => ({
+  workspaceIdx: index("social_accounts_workspace_idx").on(table.workspaceId),
+  platformIdx: index("social_accounts_platform_idx").on(table.platform),
+}));
+
+// ============================================================================
+// 12) Scheduled Posts - Calendar functionality
+// ============================================================================
+
+export const scheduledPosts = pgTable("scheduled_posts", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+  projectId: text("project_id").references(() => projects.id, { onDelete: "cascade" }),
+  clipId: text("clip_id").references(() => clips.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  platform: platformEnum("platform").notNull(),
+  socialAccountId: text("social_account_id").references(() => socialAccounts.id, { onDelete: "set null" }),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+  status: postStatusEnum("status").notNull().default("DRAFT"),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  postUrl: text("post_url"),
+  mediaUrls: text("media_urls").array(),
+  caption: text("caption"),
+  hashtags: text("hashtags").array(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+}, (table) => ({
+  workspaceIdx: index("scheduled_posts_workspace_idx").on(table.workspaceId),
+  scheduledAtIdx: index("scheduled_posts_scheduled_at_idx").on(table.scheduledAt),
+  statusIdx: index("scheduled_posts_status_idx").on(table.status),
+}));
+
+// ============================================================================
+// 13) Analytics Summary - Cached analytics data
+// ============================================================================
+
+export const analyticsSummary = pgTable("analytics_summary", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  platform: platformEnum("platform"),
+  date: timestamp("date", { withTimezone: true }).notNull(),
+  totalViews: bigint("total_views", { mode: "number" }).notNull().default(0),
+  totalLikes: bigint("total_likes", { mode: "number" }).notNull().default(0),
+  totalShares: bigint("total_shares", { mode: "number" }).notNull().default(0),
+  totalComments: bigint("total_comments", { mode: "number" }).notNull().default(0),
+  newFollowers: bigint("new_followers", { mode: "number" }).notNull().default(0),
+  avgWatchTime: doublePrecision("avg_watch_time").notNull().default(0),
+  totalVideos: integer("total_videos").notNull().default(0),
+  engagementRate: doublePrecision("engagement_rate").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+}, (table) => ({
+  workspaceIdx: index("analytics_summary_workspace_idx").on(table.workspaceId),
+  dateIdx: index("analytics_summary_date_idx").on(table.date),
+  platformIdx: index("analytics_summary_platform_idx").on(table.platform),
+}));
+
+// ============================================================================
+// 14) Payment Methods
+// ============================================================================
+
+export const paymentMethods = pgTable("payment_methods", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  stripePaymentMethodId: text("stripe_payment_method_id").unique(),
+  type: text("type").notNull(), // card, bank_account, etc.
+  brand: text("brand"), // Visa, Mastercard, etc.
+  last4: text("last4"),
+  expiryMonth: integer("expiry_month"),
+  expiryYear: integer("expiry_year"),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+}, (table) => ({
+  workspaceIdx: index("payment_methods_workspace_idx").on(table.workspaceId),
+}));
+
+// ============================================================================
+// 15) Asset Library
+// ============================================================================
+
+export const assetLibrary = pgTable("asset_library", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  type: text("type").notNull(), // image, video, audio, document
+  s3Key: text("s3_key").notNull(),
+  url: text("url"),
+  thumbnailUrl: text("thumbnail_url"),
+  bytes: bigint("bytes", { mode: "number" }),
+  contentType: text("content_type"),
+  width: integer("width"),
+  height: integer("height"),
+  durationSec: integer("duration_sec"),
+  folder: text("folder"),
+  tags: text("tags").array(),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+}, (table) => ({
+  workspaceIdx: index("asset_library_workspace_idx").on(table.workspaceId),
+  folderIdx: index("asset_library_folder_idx").on(table.folder),
+}));
+
+// ============================================================================
 // RELATIONS
 // ============================================================================
 
@@ -931,6 +1113,69 @@ export const salesTransactionsRelations = relations(
 );
 
 // ============================================================================
+// New Tables Relations
+// ============================================================================
+
+export const socialAccountsRelations = relations(socialAccounts, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [socialAccounts.workspaceId],
+    references: [workspaces.id],
+  }),
+  user: one(users, {
+    fields: [socialAccounts.userId],
+    references: [users.id],
+  }),
+}));
+
+export const scheduledPostsRelations = relations(scheduledPosts, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [scheduledPosts.workspaceId],
+    references: [workspaces.id],
+  }),
+  user: one(users, {
+    fields: [scheduledPosts.userId],
+    references: [users.id],
+  }),
+  project: one(projects, {
+    fields: [scheduledPosts.projectId],
+    references: [projects.id],
+  }),
+  clip: one(clips, {
+    fields: [scheduledPosts.clipId],
+    references: [clips.id],
+  }),
+  socialAccount: one(socialAccounts, {
+    fields: [scheduledPosts.socialAccountId],
+    references: [socialAccounts.id],
+  }),
+}));
+
+export const analyticsSummaryRelations = relations(analyticsSummary, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [analyticsSummary.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const paymentMethodsRelations = relations(paymentMethods, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [paymentMethods.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const assetLibraryRelations = relations(assetLibrary, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [assetLibrary.workspaceId],
+    references: [workspaces.id],
+  }),
+  creator: one(users, {
+    fields: [assetLibrary.createdBy],
+    references: [users.id],
+  }),
+}));
+
+// ============================================================================
 // BETTER-AUTH TABLES
 // ============================================================================
 
@@ -1014,3 +1259,13 @@ export type Clip = typeof clips.$inferSelect;
 export type NewClip = typeof clips.$inferInsert;
 export type ClipAsset = typeof clipAssets.$inferSelect;
 export type JobEvent = typeof jobEvents.$inferSelect;
+export type SocialAccount = typeof socialAccounts.$inferSelect;
+export type NewSocialAccount = typeof socialAccounts.$inferInsert;
+export type ScheduledPost = typeof scheduledPosts.$inferSelect;
+export type NewScheduledPost = typeof scheduledPosts.$inferInsert;
+export type AnalyticsSummary = typeof analyticsSummary.$inferSelect;
+export type NewAnalyticsSummary = typeof analyticsSummary.$inferInsert;
+export type PaymentMethod = typeof paymentMethods.$inferSelect;
+export type NewPaymentMethod = typeof paymentMethods.$inferInsert;
+export type AssetLibraryItem = typeof assetLibrary.$inferSelect;
+export type NewAssetLibraryItem = typeof assetLibrary.$inferInsert;
