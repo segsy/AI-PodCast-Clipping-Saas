@@ -14,6 +14,7 @@ export interface AdminUser {
   createdAt: Date | string;
   updatedAt?: Date | string;
   role?: string;
+  status?: string;
   isAdmin?: boolean;
   workspaceCount?: number;
 }
@@ -29,6 +30,7 @@ export interface AdminClip {
   projectId?: string;
   workspaceId?: string;
   jobId?: string;
+  score?: number;
   createdAt: Date | string;
   updatedAt?: Date | string;
   project?: {
@@ -49,6 +51,7 @@ export interface AdminWorkspace {
   createdAt: Date | string;
   updatedAt?: Date | string;
   memberCount?: number;
+  ownerName?: string;
   owner?: {
     id: string;
     name: string;
@@ -58,6 +61,7 @@ export interface AdminWorkspace {
     id: string;
     status: string;
     plan: string;
+    planId?: string;
   };
   credits?: number;
 }
@@ -333,5 +337,27 @@ export const adminAnalytics = {
       topWorkspaces: Array<{ id: string; name: string; clipCount: number }>;
       topUsers: Array<{ id: string; name: string; email: string; clipCount: number }>;
     }>(`/analytics${query ? `?${query}` : ""}`);
+  },
+};
+
+// Admin Activity API
+export const adminActivity = {
+  list: async (params: ListParams = {}) => {
+    const searchParams = new URLSearchParams();
+    if (params.page) searchParams.set("page", params.page.toString());
+    if (params.limit) searchParams.set("limit", params.limit.toString());
+
+    const query = searchParams.toString();
+    return fetchAPI<{
+      events: any[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+      summary: {
+        byType: Array<{ type: string; count: number }>;
+      };
+      recentActivity: Array<{ date: string; count: number }>;
+    }>(`/activity${query ? `?${query}` : ""}`);
   },
 };
