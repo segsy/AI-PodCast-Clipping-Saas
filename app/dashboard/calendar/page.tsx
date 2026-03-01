@@ -40,13 +40,23 @@ export default function CalendarPage() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
+  const [showDatePickerModal, setShowDatePickerModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedPlatform, setSelectedPlatform] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [posts, setPosts] = useState<ScheduledPost[]>([]);
+  const [projects, setProjects] = useState<{id: string; name: string}[]>([]);
+  const [selectedProject, setSelectedProject] = useState("");
   const [selectedPost, setSelectedPost] = useState<ScheduledPost | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Current date state for calendar
+  const [currentDate, setCurrentDate] = useState(new Date());
+  
+  // Upload form state
+  const [uploadDate, setUploadDate] = useState("");
+  const [uploadTime, setUploadTime] = useState("12:00");
 
   // Form state
   const [formTitle, setFormTitle] = useState("");
@@ -58,7 +68,21 @@ export default function CalendarPage() {
 
   useEffect(() => {
     fetchPosts();
+    fetchProjects();
   }, []);
+
+  const fetchProjects = async () => {
+    try {
+      const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
+      const response = await fetch(`/api/projects?workspaceId=${workspaceId}`);
+      const data = await response.json();
+      if (data.projects) {
+        setProjects(data.projects);
+      }
+    } catch (error) {
+      console.error("Failed to fetch projects:", error);
+    }
+  };
 
   const fetchPosts = async () => {
     setIsLoading(true);
@@ -95,6 +119,7 @@ export default function CalendarPage() {
           platform: formPlatform,
           scheduledAt,
           caption: formCaption,
+          projectId: selectedProject,
         }),
       });
       
@@ -138,6 +163,49 @@ export default function CalendarPage() {
     setFormScheduledDate("");
     setFormScheduledTime("12:00");
     setFormCaption("");
+    setSelectedProject("");
+  };
+
+  const handleGoSubmitProject = () => {
+    setShowScheduleModal(false);
+    window.location.href = '/dashboard/learning';
+  };
+
+  const handleUploadSchedule = async () => {
+    if (!uploadDate || !uploadTime || uploadedFiles.length === 0) return;
+    
+    setIsSaving(true);
+    try {
+      const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
+      const scheduledAt = new Date(`${uploadDate}T${uploadTime}:00`).toISOString();
+      
+      const response = await fetch("/api/scheduled-posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspaceId,
+          title: uploadedFiles[0].name,
+          description: "Uploaded video",
+          platform: selectedPlatform || "YOUTUBE",
+          scheduledAt,
+          caption: formCaption,
+        }),
+      });
+      
+      const data = await response.json();
+      if (data.post) {
+        setPosts([...posts, data.post]);
+        setShowUploadModal(false);
+        setUploadedFiles([]);
+        setUploadDate("");
+        setUploadTime("12:00");
+        setSelectedPlatform("");
+      }
+    } catch (error) {
+      console.error("Failed to schedule upload:", error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -314,97 +382,249 @@ export default function CalendarPage() {
               </button>
             </div>
 
-            {posts.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                {posts.map((post) => (
-                  <div key={post.id} style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "16px",
+            {/* Create Post Form */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "14px", fontWeight: "500", color: "white", marginBottom: "8px" }}>
+                  Select Project <span style={{ color: "var(--error)" }}>*</span>
+                </label>
+                <p style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "8px" }}>
+                  Select the project that contains the clip you would like to schedule.
+                </p>
+                <select
+                  value={selectedProject}
+                  onChange={(e) => setSelectedProject(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "12px",
                     backgroundColor: "var(--background)",
+                    border: "1px solid var(--border)",
                     borderRadius: "8px",
-                    border: "1px solid var(--border)"
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                      <div style={{
-                        width: "48px",
-                        height: "48px",
-                        backgroundColor: "var(--primary)/10",
-                        borderRadius: "8px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "24px"
-                      }}>
-                        {platforms.find(p => p.name.toLowerCase() === post.platform.toLowerCase())?.icon || "📹"}
-                      </div>
-                      <div>
-                        <p style={{ fontWeight: 500, color: "white", marginBottom: "4px" }}>{post.title}</p>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "var(--text-muted)" }}>
-                          <CalendarView size={14} />
-                          <span>{new Date(post.scheduledAt).toLocaleDateString()}</span>
-                          <Clock size={14} />
-                          <span>{new Date(post.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          <span style={{
-                            padding: "2px 8px",
-                            backgroundColor: post.status === "published" ? "var(--success)20" : "var(--warning)20",
-                            color: post.status === "published" ? "var(--success)" : "var(--warning)",
-                            borderRadius: "4px",
-                            textTransform: "capitalize"
-                          }}>
-                            {post.status}
-                          </span>
+                    color: "white",
+                    fontSize: "14px"
+                  }}
+                >
+                  <option value="">Select a project...</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "14px", fontWeight: "500", color: "white", marginBottom: "8px" }}>
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
+                  placeholder="Enter post title"
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    backgroundColor: "var(--background)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    color: "white",
+                    fontSize: "14px"
+                  }}
+                />
+              </div>
+              
+              <div>
+                <label style={{ display: "block", fontSize: "14px", fontWeight: "500", color: "white", marginBottom: "8px" }}>
+                  Platform
+                </label>
+                <select
+                  value={formPlatform}
+                  onChange={(e) => setFormPlatform(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    backgroundColor: "var(--background)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    color: "white",
+                    fontSize: "14px"
+                  }}
+                >
+                  {platforms.map((platform) => (
+                    <option key={platform.name} value={platform.name.toUpperCase()}>
+                      {platform.icon} {platform.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "14px", fontWeight: "500", color: "white", marginBottom: "8px" }}>
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    min={new Date().toISOString().split('T')[0]}
+                    value={formScheduledDate}
+                    onChange={(e) => setFormScheduledDate(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      backgroundColor: "var(--background)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "8px",
+                      color: "white",
+                      fontSize: "14px"
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "14px", fontWeight: "500", color: "white", marginBottom: "8px" }}>
+                    Time
+                  </label>
+                  <input
+                    type="time"
+                    value={formScheduledTime}
+                    onChange={(e) => setFormScheduledTime(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      backgroundColor: "var(--background)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "8px",
+                      color: "white",
+                      fontSize: "14px"
+                    }}
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label style={{ display: "block", fontSize: "14px", fontWeight: "500", color: "white", marginBottom: "8px" }}>
+                  Caption
+                </label>
+                <textarea
+                  value={formCaption}
+                  onChange={(e) => setFormCaption(e.target.value)}
+                  placeholder="Enter caption"
+                  rows={3}
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    backgroundColor: "var(--background)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    color: "white",
+                    fontSize: "14px",
+                    resize: "vertical"
+                  }}
+                />
+              </div>
+              
+              <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "8px" }}>
+                <button 
+                  onClick={() => setShowScheduleModal(false)}
+                  style={{
+                    padding: "10px 20px",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    color: "white",
+                    fontWeight: 500,
+                    cursor: "pointer"
+                  }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleCreatePost}
+                  disabled={!selectedProject || !formTitle || !formScheduledDate || isSaving}
+                  style={{
+                    padding: "10px 20px",
+                    backgroundColor: "var(--primary)",
+                    border: "none",
+                    borderRadius: "8px",
+                    color: "white",
+                    fontWeight: 500,
+                    cursor: isSaving ? "not-allowed" : "pointer",
+                    opacity: isSaving ? 0.7 : 1
+                  }}
+                >
+                  {isSaving ? "Scheduling..." : "Schedule Post"}
+                </button>
+              </div>
+            </div>
+
+            {/* Existing Posts */}
+            {posts.length > 0 && (
+              <div style={{ marginTop: "32px", borderTop: "1px solid var(--border)", paddingTop: "24px" }}>
+                <h3 style={{ fontSize: "16px", fontWeight: "600", color: "white", marginBottom: "16px" }}>
+                  Existing Scheduled Posts
+                </h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {posts.map((post) => (
+                    <div key={post.id} style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "16px",
+                      backgroundColor: "var(--background)",
+                      borderRadius: "8px",
+                      border: "1px solid var(--border)"
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                        <div style={{
+                          width: "48px",
+                          height: "48px",
+                          backgroundColor: "var(--primary)/10",
+                          borderRadius: "8px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "24px"
+                        }}>
+                          {platforms.find(p => p.name.toLowerCase() === post.platform.toLowerCase())?.icon || "📹"}
+                        </div>
+                        <div>
+                          <p style={{ fontWeight: 500, color: "white", marginBottom: "4px" }}>{post.title}</p>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "var(--text-muted)" }}>
+                            <CalendarView size={14} />
+                            <span>{new Date(post.scheduledAt).toLocaleDateString()}</span>
+                            <Clock size={14} />
+                            <span>{new Date(post.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span style={{
+                              padding: "2px 8px",
+                              backgroundColor: post.status === "published" ? "var(--success)20" : "var(--warning)20",
+                              color: post.status === "published" ? "var(--success)" : "var(--warning)",
+                              borderRadius: "4px",
+                              textTransform: "capitalize"
+                            }}>
+                              {post.status}
+                            </span>
+                          </div>
                         </div>
                       </div>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button 
+                          onClick={() => handleDeletePost(post.id)}
+                          style={{
+                            background: "none",
+                            border: "1px solid var(--error)/30",
+                            color: "var(--error)",
+                            padding: "6px 12px",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                            fontSize: "12px"
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      <button style={{
-                        background: "none",
-                        border: "1px solid var(--border)",
-                        color: "var(--text-secondary)",
-                        padding: "6px 12px",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        fontSize: "12px"
-                      }}>
-                        <Edit2 size={14} />
-                      </button>
-                      <button style={{
-                        background: "none",
-                        border: "1px solid var(--error)/30",
-                        color: "var(--error)",
-                        padding: "6px 12px",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        fontSize: "12px"
-                      }}>
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ textAlign: "center", padding: "60px 24px" }}>
-                <FileVideo size={64} style={{ color: "var(--text-muted)", marginBottom: "16px" }} />
-                <h3 style={{ fontSize: "18px", fontWeight: "600", color: "white", marginBottom: "8px" }}>
-                  You do not have any available project to post.
-                </h3>
-                <p style={{ color: "var(--text-secondary)", marginBottom: "24px" }}>
-                  Submit a project first to start scheduling your posts
-                </p>
-                <button style={{
-                  padding: "10px 24px",
-                  backgroundColor: "var(--primary)",
-                  border: "none",
-                  borderRadius: "8px",
-                  color: "white",
-                  fontWeight: 500,
-                  cursor: "pointer"
-                }}>
-                  Go Submit a Project
-                </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -577,6 +797,8 @@ export default function CalendarPage() {
                   <input
                     type="date"
                     min={new Date().toISOString().split('T')[0]}
+                    value={uploadDate}
+                    onChange={(e) => setUploadDate(e.target.value)}
                     style={{
                       width: "100%",
                       padding: "12px",
@@ -594,6 +816,8 @@ export default function CalendarPage() {
                   </label>
                   <input
                     type="time"
+                    value={uploadTime}
+                    onChange={(e) => setUploadTime(e.target.value)}
                     style={{
                       width: "100%",
                       padding: "12px",
@@ -626,6 +850,8 @@ export default function CalendarPage() {
               </button>
               {uploadedFiles.length > 0 && (
                 <button 
+                  onClick={handleUploadSchedule}
+                  disabled={!uploadDate || !uploadTime || isSaving}
                   style={{
                     padding: "10px 20px",
                     backgroundColor: "var(--primary)",
@@ -633,10 +859,11 @@ export default function CalendarPage() {
                     borderRadius: "8px",
                     color: "white",
                     fontWeight: 500,
-                    cursor: "pointer"
+                    cursor: isSaving ? "not-allowed" : "pointer",
+                    opacity: isSaving ? 0.7 : 1
                   }}
                 >
-                  Schedule Post
+                  {isSaving ? "Scheduling..." : "Schedule Post"}
                 </button>
               )}
             </div>
@@ -644,31 +871,150 @@ export default function CalendarPage() {
         </div>
       )}
 
+      {/* Date Picker Modal - Quick Add */}
+      {showDatePickerModal && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.8)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000,
+          padding: "24px"
+        }}>
+          <div style={{
+            backgroundColor: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: "12px",
+            padding: "32px",
+            maxWidth: "400px",
+            width: "100%",
+            textAlign: "center"
+          }}>
+            <h2 style={{ fontSize: "20px", fontWeight: "bold", color: "white", marginBottom: "8px" }}>
+              Add to Schedule
+            </h2>
+            <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "24px" }}>
+              {formScheduledDate ? new Date(formScheduledDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'Select a date'}
+            </p>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <button 
+                onClick={() => {
+                  setShowDatePickerModal(false);
+                  setShowScheduleModal(true);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "16px",
+                  backgroundColor: "var(--primary)",
+                  border: "none",
+                  borderRadius: "8px",
+                  color: "white",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  justifyContent: "flex-start"
+                }}
+              >
+                <FileVideo size={20} />
+                <div style={{ textAlign: "left" }}>
+                  <div>Select from Projects</div>
+                  <div style={{ fontSize: "12px", opacity: 0.8 }}>Choose an existing project clip to schedule</div>
+                </div>
+              </button>
+              
+              <button 
+                onClick={() => {
+                  setShowDatePickerModal(false);
+                  setShowUploadModal(true);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "16px",
+                  backgroundColor: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  color: "white",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  justifyContent: "flex-start"
+                }}
+              >
+                <Upload size={20} />
+                <div style={{ textAlign: "left" }}>
+                  <div>Upload New Video</div>
+                  <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>Upload and schedule a new video</div>
+                </div>
+              </button>
+            </div>
+            
+            <button 
+              onClick={() => setShowDatePickerModal(false)}
+              style={{
+                marginTop: "16px",
+                padding: "8px 16px",
+                backgroundColor: "transparent",
+                border: "none",
+                color: "var(--text-muted)",
+                cursor: "pointer"
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Calendar View */}
       <div style={{ backgroundColor: "var(--surface)", borderRadius: "12px", border: "1px solid var(--border)", padding: "24px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-          <h2 style={{ fontSize: "16px", fontWeight: "600", color: "white" }}>January 2024</h2>
+          <h2 style={{ fontSize: "16px", fontWeight: "600", color: "white" }}>{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
           <div style={{ display: "flex", gap: "8px" }}>
-            <button style={{
-              padding: "8px 12px",
-              backgroundColor: "var(--background)",
-              border: "1px solid var(--border)",
-              borderRadius: "6px",
-              color: "white",
-              fontSize: "14px",
-              cursor: "pointer"
-            }}>
+            <button 
+              onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
+              style={{
+                padding: "8px 12px",
+                backgroundColor: "var(--background)",
+                border: "1px solid var(--border)",
+                borderRadius: "6px",
+                color: "white",
+                fontSize: "14px",
+                cursor: "pointer"
+              }}>
               Prev
             </button>
-            <button style={{
-              padding: "8px 12px",
-              backgroundColor: "var(--background)",
-              border: "1px solid var(--border)",
-              borderRadius: "6px",
-              color: "white",
-              fontSize: "14px",
-              cursor: "pointer"
-            }}>
+            <button 
+              onClick={() => setCurrentDate(new Date())}
+              style={{
+                padding: "8px 12px",
+                backgroundColor: "var(--primary)",
+                border: "none",
+                borderRadius: "6px",
+                color: "white",
+                fontSize: "14px",
+                cursor: "pointer"
+              }}>
+              Today
+            </button>
+            <button 
+              onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
+              style={{
+                padding: "8px 12px",
+                backgroundColor: "var(--background)",
+                border: "1px solid var(--border)",
+                borderRadius: "6px",
+                color: "white",
+                fontSize: "14px",
+                cursor: "pointer"
+              }}>
               Next
             </button>
           </div>
@@ -693,32 +1039,63 @@ export default function CalendarPage() {
 
           {/* Calendar Days */}
           {Array.from({ length: 35 }, (_, index) => {
-            const day = index - 3;
-            const date = new Date(2024, 0, day);
-            const isCurrentMonth = date.getMonth() === 0;
-            const isToday = day === 10;
-            const hasPost = posts.some(post => new Date(post.scheduledAt).getDate() === day);
+            const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+            const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+            const day = index - firstDayOfMonth + 1;
+            const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+            const isCurrentMonth = day > 0 && day <= daysInMonth;
+            const today = new Date();
+            const isToday = isCurrentMonth && 
+              day === today.getDate() && 
+              currentDate.getMonth() === today.getMonth() && 
+              currentDate.getFullYear() === today.getFullYear();
+            const hasPost = posts.some(post => {
+              const postDate = new Date(post.scheduledAt);
+              return postDate.getDate() === day && 
+                postDate.getMonth() === currentDate.getMonth() && 
+                postDate.getFullYear() === currentDate.getFullYear();
+            });
+
+            const handleDayClick = () => {
+              if (isCurrentMonth) {
+                const selectedDateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                setFormScheduledDate(selectedDateStr);
+                setShowDatePickerModal(true);
+              }
+            };
 
             return (
-              <div key={index} style={{
-                aspectRatio: "1/1",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: isCurrentMonth ? "var(--background)" : "transparent",
-                borderRadius: "8px",
-                cursor: isCurrentMonth ? "pointer" : "default",
-                opacity: isCurrentMonth ? 1 : 0.3,
-                border: isToday ? "2px solid var(--primary)" : "1px solid transparent",
-                transition: "all 0.2s"
-              }}>
+              <div 
+                key={index} 
+                onClick={handleDayClick}
+                onMouseEnter={(e) => {
+                  const plusIcon = e.currentTarget.querySelector('.plus-icon') as HTMLElement;
+                  if (plusIcon) plusIcon.style.opacity = '1';
+                }}
+                onMouseLeave={(e) => {
+                  const plusIcon = e.currentTarget.querySelector('.plus-icon') as HTMLElement;
+                  if (plusIcon) plusIcon.style.opacity = '0';
+                }}
+                style={{
+                  aspectRatio: "1/1",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: isCurrentMonth ? "var(--background)" : "transparent",
+                  borderRadius: "8px",
+                  cursor: isCurrentMonth ? "pointer" : "default",
+                  opacity: isCurrentMonth ? 1 : 0.3,
+                  border: isToday ? "2px solid var(--primary)" : "1px solid transparent",
+                  transition: "all 0.2s",
+                  position: "relative"
+                }}>
                 <span style={{
                   fontSize: "14px",
                   color: isToday ? "var(--primary)" : "white",
                   fontWeight: isToday ? "600" : "400"
                 }}>
-                  {day > 0 && day <= 31 ? day : ""}
+                  {day > 0 && day <= daysInMonth ? day : ""}
                 </span>
                 {hasPost && isCurrentMonth && (
                   <div style={{
@@ -728,6 +1105,27 @@ export default function CalendarPage() {
                     borderRadius: "50%",
                     marginTop: "4px"
                   }} />
+                )}
+                {isCurrentMonth && (
+                  <div 
+                    className="plus-icon"
+                    style={{
+                      position: "absolute",
+                      top: "4px",
+                      right: "4px",
+                      width: "16px",
+                      height: "16px",
+                      backgroundColor: "var(--primary)",
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      opacity: 0,
+                      transition: "opacity 0.2s"
+                    }}
+                  >
+                    <Plus size={10} color="white" />
+                  </div>
                 )}
               </div>
             );

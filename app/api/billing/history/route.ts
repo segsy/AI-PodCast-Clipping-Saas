@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Workspace ID required" }, { status: 400 });
     }
 
+    const offset = (page - 1) * limit;
+
     const transactions = await db
       .select({
         id: salesTransactions.id,
@@ -27,7 +29,16 @@ export async function GET(request: NextRequest) {
       })
       .from(salesTransactions)
       .where(eq(salesTransactions.workspaceId, workspaceId))
-      .orderBy(desc(salesTransactions.createdAt));
+      .orderBy(desc(salesTransactions.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    // Get total count for pagination
+    const totalCountResult = await db
+      .select({ count: salesTransactions.id })
+      .from(salesTransactions)
+      .where(eq(salesTransactions.workspaceId, workspaceId));
+    const totalCount = totalCountResult.length;
 
     // Calculate totals
     const totalSpent = transactions.reduce((sum, t) => sum + Number(t.amountCents), 0);
@@ -47,9 +58,15 @@ export async function GET(request: NextRequest) {
         amountFormatted: `$${(Number(t.amountCents) / 100).toFixed(2)}`,
       })),
       totalSpent,
-      totalSpentFormatted: `$${(totalSpent / 100).toFixed(2)}`,
+      totalSpentFormatted: `${(totalSpent / 100).toFixed(2)}`,
       totalTransactions,
       monthlyData,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+      },
     });
   } catch (error) {
     console.error("Error fetching billing history:", error);
