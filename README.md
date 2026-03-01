@@ -277,3 +277,4 @@ Next.js proxy route:
 3. regenerate SRT for trimmed window
 4. burn styled subtitles into trimmed video
 5. upload final clip and return new clip id/url
+
