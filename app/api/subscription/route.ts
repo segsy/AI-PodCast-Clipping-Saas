@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { subscriptions, billingCustomers, creditsBalance, workspaces } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 // Define available plans
 export const PLANS = [
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
       .select()
       .from(subscriptions)
       .where(eq(subscriptions.workspaceId, workspaceId))
-      .orderBy(eq(subscriptions.currentPeriodEnd))
+      .orderBy(desc(subscriptions.currentPeriodEnd))
       .limit(1);
 
     // Get workspace credits
