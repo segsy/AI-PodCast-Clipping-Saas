@@ -26,11 +26,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (status) {
-      conditions.push(eq(scheduledPosts.status, status as typeof postStatusEnum.enumValues[number]));
+      conditions.push(eq(scheduledPosts.status, status as typeof scheduledPosts.status.enumValues[number]));
     }
 
     if (platform) {
-      conditions.push(eq(scheduledPosts.platform, platform as typeof platformEnum.enumValues[number]));
+      conditions.push(eq(scheduledPosts.platform, platform as typeof scheduledPosts.platform.enumValues[number]));
     }
 
     const posts = await db
