@@ -290,7 +290,7 @@ export default function SubscriptionPage() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "24px" }}>
-          {plans.map((plan) => (
+          {plans.map((plan: any) => (
             <div key={plan.name} style={{ 
               backgroundColor: "var(--surface)", 
               borderRadius: "16px", 

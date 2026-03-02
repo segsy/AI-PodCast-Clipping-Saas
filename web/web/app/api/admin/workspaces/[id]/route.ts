@@ -7,11 +7,11 @@ import { requireAdmin } from "@/lib/auth";
 // GET - Get single workspace by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAdmin();
-    const workspaceId = params.id;
+    const { id: workspaceId } = await params;
     
     // Get workspace
     const workspace = await db
@@ -123,11 +123,11 @@ export async function GET(
 // PUT - Update workspace
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAdmin();
-    const workspaceId = params.id;
+    const { id: workspaceId } = await params;
     
     const body = await request.json();
     const { name, slug } = body;
@@ -186,11 +186,11 @@ export async function PUT(
 // DELETE - Delete workspace
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAdmin();
-    const workspaceId = params.id;
+    const { id: workspaceId } = await params;
     
     // Check if workspace exists
     const existingWorkspace = await db

@@ -152,7 +152,7 @@ export default function SignInPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-background border border-border rounded-lg text-white placeholder-text-muted focus:outline-none focus:border-primary"
-                  placeholder="you@example.com"
+                  placeholder="johndoe@example.com"
                   required
                 />
               </div>
