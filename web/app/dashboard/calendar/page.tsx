@@ -75,6 +75,10 @@ export default function CalendarPage() {
     try {
       const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
       const response = await fetch(`/api/projects?workspaceId=${workspaceId}`);
+      if (!response.ok) {
+        console.error("Failed to fetch projects:", response.status, response.statusText);
+        return;
+      }
       const data = await response.json();
       if (data.projects) {
         setProjects(data.projects);
@@ -89,6 +93,11 @@ export default function CalendarPage() {
     try {
       const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
       const response = await fetch(`/api/scheduled-posts?workspaceId=${workspaceId}`);
+      if (!response.ok) {
+        console.error("Failed to fetch posts:", response.status, response.statusText);
+        setIsLoading(false);
+        return;
+      }
       const data = await response.json();
       
       if (data.posts) {

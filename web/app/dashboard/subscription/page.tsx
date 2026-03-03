@@ -96,7 +96,38 @@ export default function SubscriptionPage() {
   const [currentPlan, setCurrentPlan] = useState<string>("Free");
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [subscription, setSubscription] = useState<any>(null);
-  const [plans, setPlans] = useState<any[]>([]);
+  const [planList, setPlanList] = useState<any[]>([
+    {
+      name: "Free",
+      price: 0,
+      period: "forever",
+      description: "Perfect for getting started",
+      features: ["5 video uploads per month", "10 AI clips per month", "Basic captions", "Standard quality exports", "Community support"],
+      notIncluded: ["AI thumbnails", "Priority processing", "Advanced analytics", "Brand templates"],
+      cta: "Current Plan",
+      popular: false
+    },
+    {
+      name: "Pro",
+      price: 29,
+      period: "month",
+      description: "Best for content creators",
+      features: ["50 video uploads per month", "200 AI clips per month", "AI-powered captions", "HD quality exports", "AI thumbnails", "Brand templates", "Priority processing", "Email support"],
+      notIncluded: ["Advanced analytics", "API access"],
+      cta: "Upgrade Now",
+      popular: true
+    },
+    {
+      name: "Business",
+      price: 99,
+      period: "month",
+      description: "For teams and agencies",
+      features: ["Unlimited video uploads", "Unlimited AI clips", "Advanced AI captions", "4K quality exports", "AI thumbnails", "Brand templates", "Priority processing", "Advanced analytics", "API access", "Team collaboration", "Dedicated support"],
+      notIncluded: [],
+      cta: "Contact Sales",
+      popular: false
+    }
+  ]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpgrading, setIsUpgrading] = useState(false);
   const router = useRouter();
@@ -107,14 +138,19 @@ export default function SubscriptionPage() {
         // Get workspace ID from session or localStorage (in real app, this would come from auth)
         const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
         const response = await fetch(`/api/subscription?workspaceId=${workspaceId}`);
+        if (!response.ok) {
+          console.error("Failed to fetch subscription:", response.status, response.statusText);
+          setIsLoading(false);
+          return;
+        }
         const data = await response.json();
         
         if (data.subscription) {
           setSubscription(data.subscription);
           setCurrentPlan(data.currentPlan?.name || "Free");
         }
-        if (data.plans) {
-          setPlans(data.plans);
+        if (data.plans && data.plans.length > 0) {
+          setPlanList(data.plans);
         }
       } catch (error) {
         console.error("Failed to fetch subscription:", error);
@@ -290,7 +326,7 @@ export default function SubscriptionPage() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "24px" }}>
-          {plans.map((plan: any) => (
+          {planList.map((plan: any) => (
             <div key={plan.name} style={{ 
               backgroundColor: "var(--surface)", 
               borderRadius: "16px", 
@@ -325,7 +361,7 @@ export default function SubscriptionPage() {
                 <span style={{ color: "var(--text-secondary)", fontSize: "14px" }}>/{plan.period}</span>
               </div>
               <ul style={{ listStyle: "none", padding: 0, marginBottom: "24px" }}>
-                {plan.features.map((feature: string, index: number) => (
+                {plan.features && plan.features.map((feature: string, index: number) => (
                   <li key={index} style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", color: "white", fontSize: "14px" }}>
                     <div style={{ 
                       width: "20px", 
@@ -342,7 +378,7 @@ export default function SubscriptionPage() {
                     {feature}
                   </li>
                 ))}
-                {plan.notIncluded.map((feature: string, index: number) => (
+                {plan.notIncluded && plan.notIncluded.map((feature: string, index: number) => (
                   <li key={index} style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", color: "var(--text-secondary)", fontSize: "14px" }}>
                     <div style={{ 
                       width: "20px", 
