@@ -1,6 +1,14 @@
-import * as FileSystem from "expo-file-system";
-
 import type { PartUploaderAdapter, PutResult } from "../types";
+
+// Dynamic import to avoid build failure when expo-file-system is not installed
+// This adapter is only meant for Expo/react-native environments
+async function getFileSystem() {
+  try {
+    return await import("expo-file-system");
+  } catch {
+    throw new Error("expo-file-system is not installed. Install it in your Expo project: npx expo install expo-file-system");
+  }
+}
 
 function base64ToBytes(base64: string) {
   const binary = globalThis.atob(base64);
@@ -14,6 +22,7 @@ export function createExpoFsAdapter(fileUri: string): PartUploaderAdapter {
     name: "expo-fs-slice",
     async putPart({ url, fallbackUrl, startByte, endByte, onChunkProgress }): Promise<PutResult> {
       const t0 = Date.now();
+      const FileSystem = await getFileSystem();
       const base64 = await FileSystem.readAsStringAsync(fileUri, {
         encoding: FileSystem.EncodingType.Base64,
         position: startByte,
