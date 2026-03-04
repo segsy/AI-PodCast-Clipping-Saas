@@ -37,6 +37,9 @@
   ],
   "exclude": [
     "node_modules",
-    "mobile"
+    "mobile",
+    "mobile/**",
+    "web/mobile",
+    "web/mobile/**"
   ]
 }
