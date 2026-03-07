@@ -263,6 +263,21 @@ export const authOptions: NextAuthOptions = {
       // Attach userId for your guards
       if (session.user && token.sub) {
         (session.user as any).id = token.sub;
+        
+        // Get the user's active workspace
+        try {
+          const userWorkspaces = await db
+            .select()
+            .from(workspaceMembers)
+            .where(eq(workspaceMembers.userId, token.sub))
+            .limit(1);
+          
+          if (userWorkspaces.length > 0) {
+            (session.user as any).activeWorkspaceId = userWorkspaces[0].workspaceId;
+          }
+        } catch (error) {
+          console.error("[AUTH DEBUG] Error fetching workspace:", error);
+        }
       }
       // Attach admin flags from token
       if (token.isAdmin !== undefined) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Users, 
   Plus, 
@@ -12,20 +12,43 @@ import {
   User,
   Trash2,
   Edit,
-  X
+  X,
+  RefreshCw,
+  Check,
+  AlertCircle
 } from "lucide-react";
 
-const teamMembers = [
-  { id: 1, name: "John Doe", email: "john@example.com", role: "Owner", avatar: "JD", status: "active" },
-  { id: 2, name: "Sarah Smith", email: "sarah@example.com", role: "Admin", avatar: "SS", status: "active" },
-  { id: 3, name: "Mike Johnson", email: "mike@example.com", role: "Editor", avatar: "MJ", status: "active" },
-  { id: 4, name: "Emily Brown", email: "emily@example.com", role: "Viewer", avatar: "EB", status: "pending" },
-];
+interface TeamMember {
+  id: string;
+  email: string;
+  name: string | null;
+  image: string | null;
+  role: string;
+  status: string;
+  avatar: string;
+}
+
+interface TeamInvitation {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  createdAt: string;
+}
+
+interface TeamStats {
+  total: number;
+  owners: number;
+  admins: number;
+  members: number;
+  viewers: number;
+  pending: number;
+}
 
 const roleColors: Record<string, string> = {
   Owner: "var(--primary)",
   Admin: "var(--accent)",
-  Editor: "var(--success)",
+  Member: "var(--success)",
   Viewer: "var(--text-muted)",
 };
 
@@ -33,20 +56,108 @@ export default function TeamPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("Editor");
+  const [inviteRole, setInviteRole] = useState("Member");
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
+  const [stats, setStats] = useState<TeamStats>({ total: 0, owners: 0, admins: 0, members: 0, viewers: 0, pending: 0 });
+  const [loading, setLoading] = useState(true);
+  const [inviting, setInviting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredMembers = teamMembers.filter(
+  useEffect(() => {
+    fetchTeam();
+  }, []);
+
+  const fetchTeam = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/team');
+      if (response.ok) {
+        const data = await response.json();
+        setMembers(data.members || []);
+        setInvitations(data.invitations || []);
+        setStats(data.stats || { total: 0, owners: 0, admins: 0, members: 0, viewers: 0, pending: 0 });
+      }
+    } catch (error) {
+      console.error("Error fetching team:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInvite = async () => {
+    if (!inviteEmail) return;
+    
+    try {
+      setInviting(true);
+      setError(null);
+      
+      const response = await fetch('/api/team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: inviteEmail,
+          role: inviteRole.toUpperCase()
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to send invitation');
+        return;
+      }
+
+      // Refresh team data
+      await fetchTeam();
+      
+      // Close modal and reset
+      setShowInviteModal(false);
+      setInviteEmail("");
+      setInviteRole("Member");
+    } catch (error) {
+      console.error("Error inviting member:", error);
+      setError('Failed to send invitation');
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (!confirm('Are you sure you want to remove this team member?')) return;
+    
+    try {
+      const response = await fetch(`/api/team?memberId=${memberId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        await fetchTeam();
+      }
+    } catch (error) {
+      console.error("Error removing member:", error);
+    }
+  };
+
+  const handleCancelInvitation = async (invitationId: string) => {
+    try {
+      const response = await fetch(`/api/team?invitationId=${invitationId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        await fetchTeam();
+      }
+    } catch (error) {
+      console.error("Error cancelling invitation:", error);
+    }
+  };
+
+  const filteredMembers = members.filter(
     (member) =>
-      member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (member.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
       member.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const handleInvite = () => {
-    console.log("Inviting:", inviteEmail, "as", inviteRole);
-    setShowInviteModal(false);
-    setInviteEmail("");
-    setInviteRole("Editor");
-  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -114,7 +225,7 @@ export default function TeamPage() {
             </div>
             <div>
               <p style={{ color: "var(--text-muted)", fontSize: "14px" }}>Total Members</p>
-              <p style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>{teamMembers.length}</p>
+              <p style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>{stats.total}</p>
             </div>
           </div>
         </div>
@@ -125,7 +236,7 @@ export default function TeamPage() {
             </div>
             <div>
               <p style={{ color: "var(--text-muted)", fontSize: "14px" }}>Owners</p>
-              <p style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>1</p>
+              <p style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>{stats.owners}</p>
             </div>
           </div>
         </div>
@@ -136,7 +247,7 @@ export default function TeamPage() {
             </div>
             <div>
               <p style={{ color: "var(--text-muted)", fontSize: "14px" }}>Admins</p>
-              <p style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>1</p>
+              <p style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>{stats.admins}</p>
             </div>
           </div>
         </div>
@@ -147,7 +258,7 @@ export default function TeamPage() {
             </div>
             <div>
               <p style={{ color: "var(--text-muted)", fontSize: "14px" }}>Pending</p>
-              <p style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>{teamMembers.filter(m => m.status === "pending").length}</p>
+              <p style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>{stats.pending}</p>
             </div>
           </div>
         </div>
@@ -158,39 +269,130 @@ export default function TeamPage() {
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
           <h2 style={{ fontSize: "16px", fontWeight: "600", color: "white" }}>Team Members</h2>
         </div>
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          {filteredMembers.map((member) => (
-            <div
-              key={member.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "16px 20px",
-                borderBottom: "1px solid var(--border)",
-                transition: "background-color 0.2s"
-              }}
-              className="hover:bg-surface-hover"
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                <div style={{
-                  width: "40px",
-                  height: "40px",
-                  backgroundColor: roleColors[member.role] || "var(--primary)",
-                  borderRadius: "50%",
+        {loading ? (
+          <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
+            <RefreshCw size={24} className="animate-spin" style={{ margin: "0 auto" }} />
+            <p style={{ marginTop: "12px" }}>Loading team...</p>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {filteredMembers.map((member) => (
+              <div
+                key={member.id}
+                style={{
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  color: "white"
-                }}>
-                  {member.avatar}
+                  justifyContent: "space-between",
+                  padding: "16px 20px",
+                  borderBottom: "1px solid var(--border)",
+                  transition: "background-color 0.2s"
+                }}
+                className="hover:bg-surface-hover"
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                  <div style={{
+                    width: "40px",
+                    height: "40px",
+                    backgroundColor: roleColors[member.role] || "var(--primary)",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "white"
+                  }}>
+                    {member.avatar}
+                  </div>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ fontWeight: 500, color: "white" }}>{member.name || 'Unknown'}</span>
+                      {member.status === "pending" && (
+                        <span style={{
+                          padding: "2px 8px",
+                          backgroundColor: "var(--warning)",
+                          color: "black",
+                          fontSize: "12px",
+                          borderRadius: "4px"
+                        }}>
+                          Pending
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
+                      <Mail size={12} style={{ color: "var(--text-muted)" }} />
+                      <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>{member.email}</span>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span style={{ fontWeight: 500, color: "white" }}>{member.name}</span>
-                    {member.status === "pending" && (
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <span style={{
+                    padding: "4px 12px",
+                    backgroundColor: `${roleColors[member.role]}20`,
+                    color: roleColors[member.role],
+                    fontSize: "13px",
+                    fontWeight: 500,
+                    borderRadius: "6px"
+                  }}>
+                    {member.role}
+                  </span>
+                  {member.role !== "OWNER" && (
+                    <button 
+                      onClick={() => handleRemoveMember(member.id)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "var(--text-muted)",
+                        cursor: "pointer",
+                        padding: "4px"
+                      }}
+                    >
+                      <MoreVertical size={18} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Pending Invitations */}
+      {invitations.length > 0 && (
+        <div style={{ backgroundColor: "var(--surface)", borderRadius: "12px", border: "1px solid var(--border)" }}>
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
+            <h2 style={{ fontSize: "16px", fontWeight: "600", color: "white" }}>Pending Invitations</h2>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {invitations.map((invitation) => (
+              <div
+                key={invitation.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "16px 20px",
+                  borderBottom: "1px solid var(--border)"
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                  <div style={{
+                    width: "40px",
+                    height: "40px",
+                    backgroundColor: "var(--warning)",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "black"
+                  }}>
+                    {invitation.email.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ fontWeight: 500, color: "white" }}>{invitation.email}</span>
                       <span style={{
                         padding: "2px 8px",
                         backgroundColor: "var(--warning)",
@@ -200,41 +402,29 @@ export default function TeamPage() {
                       }}>
                         Pending
                       </span>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
-                    <Mail size={12} style={{ color: "var(--text-muted)" }} />
-                    <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>{member.email}</span>
+                    </div>
+                    <div style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "2px" }}>
+                      Invited as {invitation.role}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <span style={{
-                  padding: "4px 12px",
-                  backgroundColor: `${roleColors[member.role]}20`,
-                  color: roleColors[member.role],
-                  fontSize: "13px",
-                  fontWeight: 500,
-                  borderRadius: "6px"
-                }}>
-                  {member.role}
-                </span>
-                {member.role !== "Owner" && (
-                  <button style={{
+                <button 
+                  onClick={() => handleCancelInvitation(invitation.id)}
+                  style={{
                     background: "none",
                     border: "none",
-                    color: "var(--text-muted)",
+                    color: "var(--error)",
                     cursor: "pointer",
-                    padding: "4px"
-                  }}>
-                    <MoreVertical size={18} />
-                  </button>
-                )}
+                    padding: "8px"
+                  }}
+                >
+                  <X size={18} />
+                </button>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Invite Modal */}
       {showInviteModal && (
@@ -264,6 +454,22 @@ export default function TeamPage() {
                 <X size={20} />
               </button>
             </div>
+            
+            {error && (
+              <div style={{
+                padding: "12px",
+                backgroundColor: "var(--error)",
+                borderRadius: "8px",
+                marginBottom: "16px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                color: "white"
+              }}>
+                <AlertCircle size={18} />
+                {error}
+              </div>
+            )}
             
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
               <div>
@@ -301,7 +507,7 @@ export default function TeamPage() {
                   }}
                 >
                   <option value="Admin">Admin</option>
-                  <option value="Editor">Editor</option>
+                  <option value="Member">Member</option>
                   <option value="Viewer">Viewer</option>
                 </select>
               </div>
@@ -324,18 +530,33 @@ export default function TeamPage() {
                 </button>
                 <button
                   onClick={handleInvite}
+                  disabled={inviting || !inviteEmail}
                   style={{
                     flex: 1,
                     padding: "10px 20px",
-                    backgroundColor: "var(--primary)",
+                    backgroundColor: inviting ? "var(--surface-hover)" : "var(--primary)",
                     border: "none",
                     borderRadius: "8px",
                     color: "white",
                     fontWeight: 500,
-                    cursor: "pointer"
+                    cursor: inviting ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px"
                   }}
                 >
-                  Send Invite
+                  {inviting ? (
+                    <>
+                      <RefreshCw size={18} className="animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Mail size={18} />
+                      Send Invite
+                    </>
+                  )}
                 </button>
               </div>
             </div>

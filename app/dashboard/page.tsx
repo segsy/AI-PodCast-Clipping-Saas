@@ -371,6 +371,9 @@ interface UploadModalProps {
 const UploadModal = ({ isOpen, onClose, service }: UploadModalProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [activeTab, setActiveTab] = useState<"upload" | "link">("upload");
+  const [videoLink, setVideoLink] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   if (!isOpen || !service) return null;
 
@@ -386,6 +389,92 @@ const UploadModal = ({ isOpen, onClose, service }: UploadModalProps) => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleFileUpload(files[0]);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleFileUpload(files[0]);
+    }
+  };
+
+  const handleFileUpload = async (file: File) => {
+    if (!file.type.startsWith("video/") && !file.type.startsWith("audio/")) {
+      alert("Please upload a video or audio file");
+      return;
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    try {
+      // Create FormData
+      const formData = new FormData();
+      formData.append("file", file);
+      // Add workspaceId and userId - in real app these would come from auth
+      formData.append("workspaceId", "demo-workspace");
+      formData.append("userId", "demo-user");
+
+      // Simulate progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => Math.min(prev + 10, 90));
+      }, 200);
+
+      // Upload to API
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      clearInterval(progressInterval);
+      
+      if (response.ok) {
+        setUploadProgress(100);
+        setTimeout(() => {
+          onClose();
+          // Navigate to the appropriate service page
+          window.location.href = `/dashboard/${service.id}`;
+        }, 500);
+      } else {
+        alert("Upload failed. Please try again.");
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleLinkImport = async () => {
+    if (!videoLink.trim()) {
+      alert("Please enter a video link");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      // In a real app, this would call an API to process the link
+      // For now, we'll just redirect to the service page
+      setTimeout(() => {
+        onClose();
+        window.location.href = `/dashboard/${service.id}?link=${encodeURIComponent(videoLink)}`;
+      }, 1000);
+    } catch (error) {
+      console.error("Link import error:", error);
+      alert("Failed to import link. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleGoogleDriveUpload = () => {
+    // In a real app, this would trigger Google Drive picker
+    alert("Google Drive integration coming soon!");
   };
 
   const Icon = service.icon;
@@ -467,14 +556,37 @@ const UploadModal = ({ isOpen, onClose, service }: UploadModalProps) => {
                   or click to browse files
                 </div>
               </div>
-              <div className="flex items-center justify-center gap-4 flex-wrap">
-                <button className="px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover transition-colors">
-                  Browse Files
-                </button>
-                <button className="px-6 py-3 bg-surface border border-border text-white rounded-lg font-medium hover:bg-surface-hover transition-colors flex items-center gap-2">
-                  <GoogleDriveIcon /> Google Drive
-                </button>
-              </div>
+              {uploading ? (
+                <div className="space-y-2">
+                  <div className="w-full bg-surface-hover rounded-full h-2">
+                    <div 
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-text-secondary text-sm">Uploading... {uploadProgress}%</p>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-4 flex-wrap">
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept="video/*,audio/*"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    <span className="px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover transition-colors inline-block">
+                      Browse Files
+                    </span>
+                  </label>
+                  <button 
+                    onClick={handleGoogleDriveUpload}
+                    className="px-6 py-3 bg-surface border border-border text-white rounded-lg font-medium hover:bg-surface-hover transition-colors flex items-center gap-2"
+                  >
+                    <GoogleDriveIcon /> Google Drive
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
@@ -482,6 +594,7 @@ const UploadModal = ({ isOpen, onClose, service }: UploadModalProps) => {
                 {["Zoom", "YouTube", "Twitch", "Rumble"].map((platform) => (
                   <button
                     key={platform}
+                    onClick={() => setVideoLink(`${platform.toLowerCase()}-link`)}
                     className="p-4 bg-background border border-border rounded-xl text-white font-medium hover:border-primary/50 hover:bg-surface-hover transition-colors text-left flex items-center gap-3"
                   >
                     <Link className="w-5 h-5 text-primary" />
@@ -493,10 +606,16 @@ const UploadModal = ({ isOpen, onClose, service }: UploadModalProps) => {
                 <input
                   type="text"
                   placeholder="Paste your link here..."
+                  value={videoLink}
+                  onChange={(e) => setVideoLink(e.target.value)}
                   className="w-full bg-background border border-border rounded-xl px-4 py-4 text-white placeholder-text-muted focus:outline-none focus:border-primary"
                 />
-                <button className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover transition-colors">
-                  Import
+                <button 
+                  onClick={handleLinkImport}
+                  disabled={uploading}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover transition-colors disabled:opacity-50"
+                >
+                  {uploading ? "Importing..." : "Import"}
                 </button>
               </div>
             </div>

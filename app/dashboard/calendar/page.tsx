@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { 
   Calendar as CalendarIcon, 
   Plus, 
@@ -12,7 +12,8 @@ import {
   CheckCircle2,
   Edit2,
   Trash2,
-  Loader2
+  Loader2,
+  Video
 } from "lucide-react";
 
 // Types
@@ -24,6 +25,17 @@ interface ScheduledPost {
   scheduledAt: string;
   status: string;
   caption?: string;
+  projectId?: string;
+  clipId?: string;
+  mediaUrls?: string[];
+}
+
+interface UploadedFile {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  url?: string;
 }
 
 const platforms = [
@@ -71,10 +83,22 @@ export default function CalendarPage() {
     fetchProjects();
   }, []);
 
+  // Get user ID from session (mock for now)
+  const getUserId = () => {
+    // In production, get from session
+    return localStorage.getItem("userId") || "demo-user";
+  };
+
   const fetchProjects = async () => {
     try {
       const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
       const response = await fetch(`/api/projects?workspaceId=${workspaceId}`);
+      
+      if (!response.ok) {
+        console.error("Failed to fetch projects:", response.status);
+        return;
+      }
+      
       const data = await response.json();
       if (data.projects) {
         setProjects(data.projects);
@@ -89,6 +113,13 @@ export default function CalendarPage() {
     try {
       const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
       const response = await fetch(`/api/scheduled-posts?workspaceId=${workspaceId}`);
+      
+      if (!response.ok) {
+        console.error("Failed to fetch posts:", response.status);
+        setIsLoading(false);
+        return;
+      }
+      
       const data = await response.json();
       
       if (data.posts) {
@@ -107,6 +138,7 @@ export default function CalendarPage() {
     setIsSaving(true);
     try {
       const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
+      const userId = getUserId();
       const scheduledAt = new Date(`${formScheduledDate}T${formScheduledTime}:00`).toISOString();
       
       const response = await fetch("/api/scheduled-posts", {
@@ -114,6 +146,7 @@ export default function CalendarPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           workspaceId,
+          userId,
           title: formTitle,
           description: formDescription,
           platform: formPlatform,
@@ -175,22 +208,51 @@ export default function CalendarPage() {
     if (!uploadDate || !uploadTime || uploadedFiles.length === 0) return;
     
     setIsSaving(true);
+    setUploadProgress(0);
+    
     try {
       const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
+      const userId = getUserId();
       const scheduledAt = new Date(`${uploadDate}T${uploadTime}:00`).toISOString();
       
+      // First, upload the file to the server
+      const file = uploadedFiles[0];
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("workspaceId", workspaceId);
+      formData.append("userId", userId);
+      
+      setUploadProgress(30);
+      
+      const uploadResponse = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error("Failed to upload file");
+      }
+      
+      const uploadData = await uploadResponse.json();
+      setUploadProgress(60);
+      
+      // Then create the scheduled post with the uploaded file info
       const response = await fetch("/api/scheduled-posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           workspaceId,
-          title: uploadedFiles[0].name,
+          userId,
+          title: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
           description: "Uploaded video",
           platform: selectedPlatform || "YOUTUBE",
           scheduledAt,
-          caption: formCaption,
+          caption: uploadCaption,
+          mediaUrls: [uploadData.asset.url || uploadData.asset.s3Key],
         }),
       });
+      
+      setUploadProgress(90);
       
       const data = await response.json();
       if (data.post) {
@@ -200,11 +262,13 @@ export default function CalendarPage() {
         setUploadDate("");
         setUploadTime("12:00");
         setSelectedPlatform("");
+        setUploadCaption("");
       }
     } catch (error) {
       console.error("Failed to schedule upload:", error);
     } finally {
       setIsSaving(false);
+      setUploadProgress(null);
     }
   };
 
@@ -652,7 +716,9 @@ export default function CalendarPage() {
             borderRadius: "12px",
             padding: "32px",
             maxWidth: "600px",
-            width: "100%"
+            width: "100%",
+            maxHeight: "80vh",
+            overflowY: "auto"
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
               <h2 style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>Upload Own Video</h2>
@@ -832,6 +898,31 @@ export default function CalendarPage() {
               </div>
             )}
 
+            {/* Caption */}
+            {uploadedFiles.length > 0 && (
+              <div style={{ marginTop: "24px" }}>
+                <label style={{ display: "block", fontSize: "14px", fontWeight: "500", color: "white", marginBottom: "12px" }}>
+                  Caption
+                </label>
+                <textarea
+                  value={uploadCaption}
+                  onChange={(e) => setUploadCaption(e.target.value)}
+                  placeholder="Enter caption for your video post..."
+                  rows={3}
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    backgroundColor: "var(--background)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    color: "white",
+                    fontSize: "14px",
+                    resize: "vertical"
+                  }}
+                />
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div style={{ marginTop: "24px", display: "flex", gap: "12px", justifyContent: "flex-end" }}>
               <button 
@@ -860,10 +951,20 @@ export default function CalendarPage() {
                     color: "white",
                     fontWeight: 500,
                     cursor: isSaving ? "not-allowed" : "pointer",
-                    opacity: isSaving ? 0.7 : 1
+                    opacity: isSaving ? 0.7 : 1,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
                   }}
                 >
-                  {isSaving ? "Scheduling..." : "Schedule Post"}
+                  {isSaving ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      {uploadProgress ? `${uploadProgress}%` : "Uploading..."}
+                    </>
+                  ) : (
+                    "Schedule Post"
+                  )}
                 </button>
               )}
             </div>
@@ -1192,6 +1293,40 @@ export default function CalendarPage() {
           )}
         </div>
       </div>
+
+      {/* Floating Action Button (FAB) - Quick Add */}
+      <button
+        onClick={() => setShowDatePickerModal(true)}
+        style={{
+          position: "fixed",
+          bottom: "24px",
+          right: "24px",
+          width: "56px",
+          height: "56px",
+          borderRadius: "50%",
+          backgroundColor: "var(--primary)",
+          border: "none",
+          color: "white",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+          zIndex: 100,
+          transition: "transform 0.2s, box-shadow 0.2s"
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "scale(1.1)";
+          e.currentTarget.style.boxShadow = "0 6px 16px rgba(0, 0, 0, 0.4)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "scale(1)";
+          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.3)";
+        }}
+        title="Quick Add"
+      >
+        <Plus size={24} />
+      </button>
     </div>
   );
 }

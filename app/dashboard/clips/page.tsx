@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Film, 
   Search, 
@@ -18,8 +18,34 @@ import {
   MessageCircle,
   Calendar,
   Grid,
-  List
+  List,
+  X,
+  Loader2
 } from "lucide-react";
+
+interface Clip {
+  id: string;
+  title: string;
+  startMs: number;
+  endMs: number;
+  status: string;
+  score: number | null;
+  variant: string | null;
+  createdAt: string;
+  projectName: string | null;
+  // Legacy fields for backward compatibility
+  duration?: string;
+  views?: string;
+  likes?: string;
+  platform?: string;
+  thumbnail?: string | null;
+}
+
+interface ClipStats {
+  total: number;
+  published: number;
+  drafts: number;
+}
 
 const clips = [
   { 
@@ -102,16 +128,48 @@ export default function ClipsPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
+  const [clips, setClips] = useState<Clip[]>([]);
+  const [stats, setStats] = useState<ClipStats>({ total: 0, published: 0, drafts: 0 });
+  const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  useEffect(() => {
+    fetchClips();
+  }, [statusFilter]);
+
+  const fetchClips = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (statusFilter !== "all") {
+        params.append("status", statusFilter.toUpperCase());
+      }
+      
+      const response = await fetch(`/api/clips?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        setClips(data.clips || []);
+        setStats(data.stats || { total: 0, published: 0, drafts: 0 });
+      }
+    } catch (error) {
+      console.error("Error fetching clips:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateClip = () => {
+    // Navigate to clip creation page or open modal
+    window.location.href = "/dashboard/clip-anything";
+  };
 
   const filteredClips = clips.filter(clip => {
-    const matchesSearch = clip.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || clip.status === statusFilter;
-    const matchesPlatform = platformFilter === "all" || clip.platform === platformFilter;
-    return matchesSearch && matchesStatus && matchesPlatform;
+    const matchesSearch = clip.title?.toLowerCase().includes(searchQuery.toLowerCase()) || true;
+    return matchesSearch;
   });
 
-  const publishedCount = clips.filter(c => c.status === "published").length;
-  const draftCount = clips.filter(c => c.status === "draft").length;
+  const publishedCount = stats.published;
+  const draftCount = stats.drafts;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -121,18 +179,20 @@ export default function ClipsPage() {
           <h1 style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>Clips</h1>
           <p style={{ color: "var(--text-secondary)", marginTop: "4px" }}>Manage and view all your created clips</p>
         </div>
-        <button style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          padding: "10px 20px",
-          backgroundColor: "var(--primary)",
-          border: "none",
-          borderRadius: "8px",
-          color: "white",
-          fontWeight: 500,
-          cursor: "pointer"
-        }}>
+        <button 
+          onClick={handleCreateClip}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "10px 20px",
+            backgroundColor: "var(--primary)",
+            border: "none",
+            borderRadius: "8px",
+            color: "white",
+            fontWeight: 500,
+            cursor: "pointer"
+          }}>
           <Plus size={18} />
           Create Clip
         </button>
@@ -353,12 +413,12 @@ export default function ClipsPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                   <span style={{
                     padding: "2px 8px",
-                    backgroundColor: platformColors[clip.platform] + "20",
-                    color: platformColors[clip.platform],
+                    backgroundColor: (platformColors[clip.platform || "Not exported"]) + "20",
+                    color: platformColors[clip.platform || "Not exported"],
                     fontSize: "11px",
                     borderRadius: "4px"
                   }}>
-                    {clip.platform}
+                    {clip.platform || "Not exported"}
                   </span>
                   <span style={{
                     padding: "2px 8px",
@@ -432,12 +492,12 @@ export default function ClipsPage() {
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <span style={{
                       padding: "2px 8px",
-                      backgroundColor: platformColors[clip.platform] + "20",
-                      color: platformColors[clip.platform],
+                      backgroundColor: (platformColors[clip.platform || "Not exported"]) + "20",
+                      color: platformColors[clip.platform || "Not exported"],
                       fontSize: "11px",
                       borderRadius: "4px"
                     }}>
-                      {clip.platform}
+                      {clip.platform || "Not exported"}
                     </span>
                     <span style={{
                       padding: "2px 8px",

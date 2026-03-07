@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   CreditCard, 
   TrendingUp, 
@@ -13,19 +13,28 @@ import {
   Film,
   Image,
   FileText,
-  Plus
+  Plus,
+  RefreshCw,
+  AlertCircle,
+  Check,
+  X
 } from "lucide-react";
 
-const creditTransactions = [
-  { id: 1, type: "clip_generation", amount: -50, description: "Generated 10 clips from video", date: "2 hours ago", remaining: 1250 },
-  { id: 2, type: "caption_generation", amount: -25, description: "Generated captions for 5 minutes", date: "5 hours ago", remaining: 1300 },
-  { id: 3, type: "thumbnail_generation", amount: -30, description: "Generated 3 thumbnails", date: "1 day ago", remaining: 1325 },
-  { id: 4, type: "purchase", amount: 500, description: "Purchased credits", date: "2 days ago", remaining: 1355 },
-  { id: 5, type: "clip_generation", amount: -80, description: "Generated 16 clips from video", date: "3 days ago", remaining: 855 },
-  { id: 6, type: "caption_generation", amount: -45, description: "Generated captions for 9 minutes", date: "4 days ago", remaining: 935 },
-  { id: 7, type: "thumbnail_generation", amount: -20, description: "Generated 2 thumbnails", date: "5 days ago", remaining: 980 },
-  { id: 8, type: "purchase", amount: 1000, description: "Purchased credits (bonus 100)", date: "1 week ago", remaining: 1000 },
-];
+interface Transaction {
+  id: string;
+  type: string;
+  amount: number;
+  description: string;
+  date: string;
+}
+
+interface CreditPackage {
+  id: string;
+  name: string;
+  credits: number;
+  price: number;
+  bonus: number;
+}
 
 const typeIcons: Record<string, any> = {
   clip_generation: Film,
@@ -44,10 +53,119 @@ const typeColors: Record<string, string> = {
 export default function CreditsPage() {
   const [timeFilter, setTimeFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [credits, setCredits] = useState(0);
+  const [monthlyUsed, setMonthlyUsed] = useState(0);
+  const [monthlyLimit, setMonthlyLimit] = useState(0);
+  const [nextBillingDate, setNextBillingDate] = useState<string | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [packages, setPackages] = useState<CreditPackage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState<CreditPackage | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const totalCredits = 1250;
-  const monthlyUsed = 750;
-  const monthlyLimit = 2000;
+  useEffect(() => {
+    fetchCredits();
+  }, []);
+
+  const fetchCredits = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/credits');
+      if (response.ok) {
+        const data = await response.json();
+        setCredits(data.credits || 0);
+        setMonthlyUsed(data.monthlyUsed || 0);
+        setMonthlyLimit(data.monthlyLimit || 0);
+        setNextBillingDate(data.nextBillingDate);
+        setTransactions(data.transactions || []);
+        setPackages(data.packages || []);
+      }
+    } catch (err) {
+      console.error("Error fetching credits:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBuyCredits = async (pkg: CreditPackage) => {
+    try {
+      setPurchasing(pkg.id);
+      setError(null);
+
+      const response = await fetch('/api/credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packageId: pkg.id })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to create checkout session');
+        return;
+      }
+
+      // Redirect to Stripe checkout
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      setError('Failed to purchase credits');
+    } finally {
+      setPurchasing(null);
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    
+    if (hours < 1) return "Just now";
+    if (hours < 24) return `${hours} hours ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days} days ago`;
+    return date.toLocaleDateString();
+  };
+
+  const formatNextBilling = () => {
+    if (!nextBillingDate) return "N/A";
+    const date = new Date(nextBillingDate);
+    const now = new Date();
+    const diff = date.getTime() - now.getTime();
+    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    return days > 0 ? days : 0;
+  };
+
+  const filteredTransactions = transactions.filter(t => {
+    // Time filter
+    if (timeFilter !== "all") {
+      const date = new Date(t.date);
+      const now = new Date();
+      
+      if (timeFilter === "today") {
+        if (date.toDateString() !== now.toDateString()) return false;
+      } else if (timeFilter === "week") {
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        if (date < weekAgo) return false;
+      } else if (timeFilter === "month") {
+        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        if (date < monthAgo) return false;
+      }
+    }
+
+    // Type filter
+    if (typeFilter !== "all" && t.type !== typeFilter) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const usagePercentage = monthlyLimit > 0 ? Math.min((monthlyUsed / monthlyLimit) * 100, 100) : 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -57,22 +175,40 @@ export default function CreditsPage() {
           <h1 style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>Credit Usage History</h1>
           <p style={{ color: "var(--text-secondary)", marginTop: "4px" }}>Track your credit usage and purchases</p>
         </div>
-        <button style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          padding: "10px 20px",
-          backgroundColor: "var(--primary)",
-          border: "none",
-          borderRadius: "8px",
-          color: "white",
-          fontWeight: 500,
-          cursor: "pointer"
-        }}>
+        <button 
+          onClick={() => setShowPurchaseModal(true)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "10px 20px",
+            backgroundColor: "var(--primary)",
+            border: "none",
+            borderRadius: "8px",
+            color: "white",
+            fontWeight: 500,
+            cursor: "pointer"
+          }}
+        >
           <Plus size={18} />
           Buy Credits
         </button>
       </div>
+
+      {error && (
+        <div style={{
+          padding: "12px",
+          backgroundColor: "var(--error)",
+          borderRadius: "8px",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          color: "white"
+        }}>
+          <AlertCircle size={18} />
+          {error}
+        </div>
+      )}
 
       {/* Credit Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
@@ -83,7 +219,7 @@ export default function CreditsPage() {
             </div>
             <span style={{ fontSize: "14px", color: "var(--text-muted)" }}>Available</span>
           </div>
-          <p style={{ fontSize: "32px", fontWeight: "bold", color: "white" }}>{totalCredits.toLocaleString()}</p>
+          <p style={{ fontSize: "32px", fontWeight: "bold", color: "white" }}>{loading ? "..." : credits.toLocaleString()}</p>
           <p style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "4px" }}>credits remaining</p>
         </div>
 
@@ -94,7 +230,7 @@ export default function CreditsPage() {
             </div>
             <span style={{ fontSize: "14px", color: "var(--text-muted)" }}>This Month</span>
           </div>
-          <p style={{ fontSize: "32px", fontWeight: "bold", color: "white" }}>{monthlyUsed.toLocaleString()}</p>
+          <p style={{ fontSize: "32px", fontWeight: "bold", color: "white" }}>{loading ? "..." : monthlyUsed.toLocaleString()}</p>
           <p style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "4px" }}>credits used</p>
         </div>
 
@@ -105,7 +241,7 @@ export default function CreditsPage() {
             </div>
             <span style={{ fontSize: "14px", color: "var(--text-muted)" }}>Monthly Limit</span>
           </div>
-          <p style={{ fontSize: "32px", fontWeight: "bold", color: "white" }}>{monthlyLimit.toLocaleString()}</p>
+          <p style={{ fontSize: "32px", fontWeight: "bold", color: "white" }}>{loading ? "..." : monthlyLimit.toLocaleString()}</p>
           <p style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "4px" }}>credits / month</p>
         </div>
 
@@ -116,7 +252,7 @@ export default function CreditsPage() {
             </div>
             <span style={{ fontSize: "14px", color: "var(--text-muted)" }}>Next Billing</span>
           </div>
-          <p style={{ fontSize: "32px", fontWeight: "bold", color: "white" }}>15</p>
+          <p style={{ fontSize: "32px", fontWeight: "bold", color: "white" }}>{loading ? "..." : formatNextBilling()}</p>
           <p style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "4px" }}>days remaining</p>
         </div>
       </div>
@@ -126,15 +262,15 @@ export default function CreditsPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
           <h2 style={{ fontSize: "16px", fontWeight: "600", color: "white" }}>Monthly Usage</h2>
           <span style={{ fontSize: "14px", color: "var(--text-muted)" }}>
-            {monthlyUsed} / {monthlyLimit} credits ({Math.round((monthlyUsed / monthlyLimit) * 100)}%)
+            {monthlyUsed.toLocaleString()} / {monthlyLimit.toLocaleString()} credits ({Math.round(usagePercentage)}%)
           </span>
         </div>
         <div style={{ width: "100%", height: "12px", backgroundColor: "var(--surface-hover)", borderRadius: "6px", overflow: "hidden" }}>
           <div 
             style={{ 
-              width: `${(monthlyUsed / monthlyLimit) * 100}%`, 
+              width: `${usagePercentage}%`, 
               height: "100%", 
-              backgroundColor: (monthlyUsed / monthlyLimit) > 0.8 ? "var(--error)" : (monthlyUsed / monthlyLimit) > 0.5 ? "var(--warning)" : "var(--primary)",
+              backgroundColor: usagePercentage > 80 ? "var(--error)" : usagePercentage > 50 ? "var(--warning)" : "var(--primary)",
               borderRadius: "6px",
               transition: "width 0.3s"
             }} 
@@ -142,7 +278,7 @@ export default function CreditsPage() {
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px" }}>
           <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>0</span>
-          <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>{monthlyLimit}</span>
+          <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>{monthlyLimit.toLocaleString()}</span>
         </div>
       </div>
 
@@ -212,64 +348,142 @@ export default function CreditsPage() {
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
           <h2 style={{ fontSize: "16px", fontWeight: "600", color: "white" }}>Transaction History</h2>
         </div>
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          {creditTransactions.map((transaction) => {
-            const Icon = typeIcons[transaction.type] || CreditCard;
-            const color = typeColors[transaction.type] || "var(--primary)";
-            const isPurchase = transaction.amount > 0;
-            
-            return (
-              <div
-                key={transaction.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "16px 20px",
-                  borderBottom: "1px solid var(--border)",
-                  transition: "background-color 0.2s"
-                }}
-                className="hover:bg-surface-hover"
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                  <div style={{
-                    width: "40px",
-                    height: "40px",
-                    backgroundColor: color + "20",
-                    borderRadius: "8px",
+        {loading ? (
+          <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
+            <RefreshCw size={24} className="animate-spin" style={{ margin: "0 auto" }} />
+          </div>
+        ) : filteredTransactions.length === 0 ? (
+          <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
+            No transactions yet
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {filteredTransactions.map((transaction) => {
+              const Icon = typeIcons[transaction.type] || CreditCard;
+              const color = typeColors[transaction.type] || "var(--primary)";
+              const isPurchase = transaction.amount > 0;
+              
+              return (
+                <div
+                  key={transaction.id}
+                  style={{
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "center"
-                  }}>
-                    <Icon size={20} style={{ color }} />
+                    justifyContent: "space-between",
+                    padding: "16px 20px",
+                    borderBottom: "1px solid var(--border)",
+                    transition: "background-color 0.2s"
+                  }}
+                  className="hover:bg-surface-hover"
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                    <div style={{
+                      width: "40px",
+                      height: "40px",
+                      backgroundColor: color + "20",
+                      borderRadius: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}>
+                      <Icon size={20} style={{ color }} />
+                    </div>
+                    <div>
+                      <p style={{ fontWeight: 500, color: "white" }}>{transaction.description}</p>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "2px" }}>
+                        <Clock size={12} style={{ color: "var(--text-muted)" }} />
+                        <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>{formatDate(transaction.date)}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p style={{ fontWeight: 500, color: "white" }}>{transaction.description}</p>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "2px" }}>
-                      <Clock size={12} style={{ color: "var(--text-muted)" }} />
-                      <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>{transaction.date}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+                    <div style={{ textAlign: "right" }}>
+                      <p style={{ 
+                        fontSize: "16px", 
+                        fontWeight: 600, 
+                        color: isPurchase ? "var(--success)" : "var(--error)" 
+                      }}>
+                        {isPurchase ? "+" : ""}{transaction.amount}
+                      </p>
                     </div>
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
-                  <div style={{ textAlign: "right" }}>
-                    <p style={{ 
-                      fontSize: "16px", 
-                      fontWeight: 600, 
-                      color: isPurchase ? "var(--success)" : "var(--error)" 
-                    }}>
-                      {isPurchase ? "+" : ""}{transaction.amount}
-                    </p>
-                    <p style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "2px" }}>
-                      {transaction.remaining} remaining
-                    </p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
+
+      {/* Purchase Modal */}
+      {showPurchaseModal && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          backgroundColor: "rgba(0,0,0,0.7)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 100
+        }}>
+          <div style={{
+            backgroundColor: "var(--surface)",
+            borderRadius: "16px",
+            border: "1px solid var(--border)",
+            width: "100%",
+            maxWidth: "560px",
+            padding: "24px"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+              <h2 style={{ fontSize: "20px", fontWeight: "600", color: "white" }}>Buy Credits</h2>
+              <button
+                onClick={() => setShowPurchaseModal(false)}
+                style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
+              {packages.map((pkg) => (
+                <button
+                  key={pkg.id}
+                  onClick={() => handleBuyCredits(pkg)}
+                  disabled={purchasing === pkg.id}
+                  style={{
+                    padding: "20px",
+                    backgroundColor: "var(--surface-hover)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "12px",
+                    cursor: purchasing === pkg.id ? "not-allowed" : "pointer",
+                    textAlign: "left"
+                  }}
+                >
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "white", marginBottom: "8px" }}>
+                    {pkg.name}
+                  </div>
+                  <div style={{ fontSize: "24px", fontWeight: "bold", color: "white", marginBottom: "4px" }}>
+                    {pkg.credits.toLocaleString()}
+                  </div>
+                  {pkg.bonus > 0 && (
+                    <div style={{ fontSize: "12px", color: "var(--success)", marginBottom: "8px" }}>
+                      +{pkg.bonus} bonus credits
+                    </div>
+                  )}
+                  <div style={{ fontSize: "16px", fontWeight: 600, color: "var(--primary)" }}>
+                    ${pkg.price}
+                  </div>
+                  {purchasing === pkg.id && (
+                    <div style={{ marginTop: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color: "var(--text-muted)" }}>
+                      <RefreshCw size={16} className="animate-spin" />
+                      Processing...
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

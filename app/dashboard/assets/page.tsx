@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   FolderOpen, 
   ImageIcon, 
@@ -12,20 +12,39 @@ import {
   Filter, 
   Plus,
   Crown,
-  Lock
+  Lock,
+  X,
+  Loader2,
+  FolderPlus
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getCurrentSubscription } from "@/lib/billing";
 
-const assets = [
-  { id: 1, name: "Podcast Intro Music", type: "audio", size: "2.4 MB", duration: "0:30", thumbnail: null },
-  { id: 2, name: "Background Music - Ambient", type: "audio", size: "4.8 MB", duration: "2:15", thumbnail: null },
-  { id: 3, name: "Logo - Black", type: "image", size: "125 KB", thumbnail: null },
-  { id: 4, name: "Logo - White", type: "image", size: "132 KB", thumbnail: null },
-  { id: 5, name: "Intro Template", type: "video", size: "15.2 MB", duration: "0:15", thumbnail: null },
-  { id: 6, name: "Outro Template", type: "video", size: "12.8 MB", duration: "0:12", thumbnail: null },
-  { id: 7, name: "Sound Effect - Applause", type: "audio", size: "1.2 MB", duration: "0:05", thumbnail: null },
-  { id: 8, name: "Sound Effect - Laughter", type: "audio", size: "850 KB", duration: "0:03", thumbnail: null },
+interface Asset {
+  id: string;
+  name: string;
+  type: string;
+  url?: string;
+  thumbnailUrl?: string;
+  bytes?: number;
+  contentType?: string;
+  width?: number;
+  height?: number;
+  durationSec?: number;
+  folder?: string;
+  createdAt: string;
+}
+
+// Mock data for initial display
+const mockAssets: Asset[] = [
+  { id: "1", name: "Podcast Intro Music", type: "audio", bytes: 2500000, durationSec: 30, createdAt: "2026-02-01" },
+  { id: "2", name: "Background Music - Ambient", type: "audio", bytes: 5000000, durationSec: 135, createdAt: "2026-02-02" },
+  { id: "3", name: "Logo - Black", type: "image", bytes: 128000, createdAt: "2026-02-03" },
+  { id: "4", name: "Logo - White", type: "image", bytes: 135000, createdAt: "2026-02-03" },
+  { id: "5", name: "Intro Template", type: "video", bytes: 15900000, durationSec: 15, createdAt: "2026-02-05" },
+  { id: "6", name: "Outro Template", type: "video", bytes: 13400000, durationSec: 12, createdAt: "2026-02-05" },
+  { id: "7", name: "Sound Effect - Applause", type: "audio", bytes: 1250000, durationSec: 5, createdAt: "2026-02-06" },
+  { id: "8", name: "Sound Effect - Laughter", type: "audio", bytes: 870000, durationSec: 3, createdAt: "2026-02-06" },
 ];
 
 const assetTypes = ["All", "Images", "Videos", "Audio"];
@@ -35,9 +54,15 @@ export default function AssetLibraryPage() {
   const router = useRouter();
   const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [assets, setAssets] = useState<Asset[]>(mockAssets);
   const [selectedType, setSelectedType] = useState("All");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const checkSubscription = async () => {
@@ -49,9 +74,19 @@ export default function AssetLibraryPage() {
         if (!sub || (sub.planId !== "pro" && sub.planId !== "business")) {
           router.push("/resources/pricing?upgrade=assets");
         }
+        
+        // Fetch assets from database
+        const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
+        const response = await fetch(`/api/assets?workspaceId=${workspaceId}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.assets && data.assets.length > 0) {
+            setAssets(data.assets);
+          }
+        }
       } catch (error) {
         console.error("Failed to check subscription:", error);
-        router.push("/resources/pricing?upgrade=assets");
+        // Continue with mock data on error
       } finally {
         setLoading(false);
       }
@@ -59,6 +94,91 @@ export default function AssetLibraryPage() {
 
     checkSubscription();
   }, [router]);
+
+  // Handle file upload
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Determine asset type based on file type
+        let assetType = "other";
+        if (file.type.startsWith("image/")) assetType = "image";
+        else if (file.type.startsWith("video/")) assetType = "video";
+        else if (file.type.startsWith("audio/")) assetType = "audio";
+        
+        // In production, this would upload to S3 and create the asset record
+        // For demo, we'll simulate the upload
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("workspaceId", workspaceId);
+        formData.append("name", file.name);
+        formData.append("type", assetType);
+        
+        // Simulate upload progress
+        for (let progress = 0; progress <= 100; progress += 20) {
+          setUploadProgress(progress);
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        
+        // Create asset in database
+        const response = await fetch("/api/assets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            workspaceId,
+            name: file.name,
+            type: assetType,
+            s3Key: `assets/${workspaceId}/${file.name}`,
+            url: URL.createObjectURL(file),
+            bytes: file.size,
+            contentType: file.type,
+          }),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.asset) {
+            setAssets(prev => [data.asset, ...prev]);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Upload failed:", error);
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  // Handle create folder
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) return;
+    
+    try {
+      const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
+      
+      // In production, this would create a folder in the database
+      console.log("Creating folder:", newFolderName, "for workspace:", workspaceId);
+      
+      // For demo, just close the modal
+      setShowCreateFolder(false);
+      setNewFolderName("");
+    } catch (error) {
+      console.error("Failed to create folder:", error);
+    }
+  };
 
   const filteredAssets = assets.filter(asset => {
     const matchesType = selectedType === "All" || 
@@ -70,6 +190,22 @@ export default function AssetLibraryPage() {
     
     return matchesType && matchesSearch;
   });
+
+  // Format file size
+  const formatSize = (bytes?: number) => {
+    if (!bytes) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Format duration
+  const formatDuration = (seconds?: number) => {
+    if (!seconds) return "";
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const getAssetIcon = (type: string) => {
     switch (type) {
@@ -120,34 +256,54 @@ export default function AssetLibraryPage() {
           <p style={{ color: "var(--text-secondary)", marginTop: "4px" }}>Manage and organize your media assets</p>
         </div>
         <div style={{ display: "flex", gap: "12px" }}>
-          <button style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "10px 20px",
-            backgroundColor: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: "8px",
-            color: "white",
-            fontWeight: 500,
-            cursor: "pointer"
-          }}>
-            <Upload size={18} />
-            Upload Asset
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleUpload}
+            multiple
+            accept="image/*,video/*,audio/*"
+            style={{ display: "none" }}
+          />
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "10px 20px",
+              backgroundColor: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: "8px",
+              color: "white",
+              fontWeight: 500,
+              cursor: uploading ? "not-allowed" : "pointer",
+              opacity: uploading ? 0.7 : 1
+            }}
+          >
+            {uploading ? (
+              <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
+            ) : (
+              <Upload size={18} />
+            )}
+            {uploading ? `Uploading ${uploadProgress}%` : "Upload Asset"}
           </button>
-          <button style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "10px 20px",
-            backgroundColor: "var(--primary)",
-            border: "none",
-            borderRadius: "8px",
-            color: "white",
-            fontWeight: 500,
-            cursor: "pointer"
-          }}>
-            <Plus size={18} />
+          <button 
+            onClick={() => setShowCreateFolder(true)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "10px 20px",
+              backgroundColor: "var(--primary)",
+              border: "none",
+              borderRadius: "8px",
+              color: "white",
+              fontWeight: 500,
+              cursor: "pointer"
+            }}
+          >
+            <FolderPlus size={18} />
             Create Folder
           </button>
         </div>
@@ -310,7 +466,7 @@ export default function AssetLibraryPage() {
                   }}>
                     {asset.type}
                   </span>
-                  <span>{asset.size}</span>
+                  <span>{formatSize(asset.bytes)}</span>
                 </div>
               </div>
             </div>

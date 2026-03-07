@@ -2,20 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { analyticsSummary, analyticsEvents } from "@/db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
+import { getActiveWorkspaceId } from "@/lib/auth";
 
 type Platform = "YOUTUBE" | "TIKTOK" | "INSTAGRAM" | "FACEBOOK" | "TWITTER" | "LINKEDIN" | "PINTEREST" | "SNAPCHAT";
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const workspaceId = searchParams.get("workspaceId");
-    const platform = searchParams.get("platform");
-
-    if (!workspaceId) {
+    const workspaceId = await getActiveWorkspaceId();
+    
+    // Fallback to query param for backwards compatibility
+    const queryWorkspaceId = request.nextUrl.searchParams.get("workspaceId");
+    
+    if (!workspaceId && !queryWorkspaceId) {
       return NextResponse.json({ error: "Workspace ID required" }, { status: 400 });
     }
 
-    const conditions = [eq(analyticsSummary.workspaceId, workspaceId)];
+    const useWorkspaceId = workspaceId || queryWorkspaceId;
+    const platform = request.nextUrl.searchParams.get("platform");
+
+    const conditions = [eq(analyticsSummary.workspaceId, useWorkspaceId!)];
 
     if (platform) {
       conditions.push(eq(analyticsSummary.platform, platform as Platform));
@@ -88,9 +93,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const workspaceId = await getActiveWorkspaceId();
     const body = await request.json();
+    
+    // Fallback to body workspaceId for backwards compatibility
+    const useWorkspaceId = workspaceId || body.workspaceId;
+    
     const {
-      workspaceId,
       platform,
       date,
       totalViews,
@@ -103,7 +112,7 @@ export async function POST(request: NextRequest) {
       engagementRate,
     } = body;
 
-    if (!workspaceId || !date) {
+    if (!useWorkspaceId || !date) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -116,7 +125,7 @@ export async function POST(request: NextRequest) {
     // Use raw SQL for insert to avoid type issues
     const result = await db.execute(sql`
       INSERT INTO analytics_summary (id, workspace_id, platform, date, total_views, total_likes, total_shares, total_comments, new_followers, avg_watch_time, total_videos, engagement_rate, created_at, updated_at)
-      VALUES (${id}, ${workspaceId}, ${platform || null}, ${dateStr}, ${totalViews || 0}, ${totalLikes || 0}, ${totalShares || 0}, ${totalComments || 0}, ${newFollowers || 0}, ${avgWatchTime || 0}, ${totalVideos || 0}, ${engagementRate || 0}, NOW(), NOW())
+      VALUES (${id}, ${useWorkspaceId}, ${platform || null}, ${dateStr}, ${totalViews || 0}, ${totalLikes || 0}, ${totalShares || 0}, ${totalComments || 0}, ${newFollowers || 0}, ${avgWatchTime || 0}, ${totalVideos || 0}, ${engagementRate || 0}, NOW(), NOW())
       ON CONFLICT (workspace_id, platform, date) DO UPDATE SET
         total_views = ${totalViews || 0},
         total_likes = ${totalLikes || 0},

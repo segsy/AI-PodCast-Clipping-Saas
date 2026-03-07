@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Image, 
   Sparkles, 
@@ -15,8 +15,23 @@ import {
   Check,
   X,
   Upload,
-  Wand2
+  Wand2,
+  AlertCircle
 } from "lucide-react";
+
+interface ThumbnailJob {
+  id: string;
+  status: string;
+  style: string;
+  aspectRatio: string;
+  titleText: string;
+  aiModel: string;
+  creditsUsed: number;
+  generatedVariants: string[];
+  errorMessage: string | null;
+  createdAt: string;
+  filename: string | null;
+}
 
 const thumbnailStyles = [
   { id: "vibrant", name: "Vibrant", color: "#FF6B6B" },
@@ -34,26 +49,117 @@ const aspectRatios = [
   { id: "4:5", name: "Instagram", icon: "4:5" },
 ];
 
-const recentThumbnails = [
-  { id: 1, title: "Episode 45 - Growth Tips", style: "Vibrant", createdAt: "2 hours ago" },
-  { id: 2, title: "Interview with Sarah", style: "Minimal", createdAt: "5 hours ago" },
-  { id: 3, title: "Q&A Session #12", style: "Bold", createdAt: "1 day ago" },
-  { id: 4, title: "Marketing Deep Dive", style: "Gradient", createdAt: "2 days ago" },
+const aiModels = [
+  { id: "gemini", name: "Gemini", description: "Google's best model" },
+  { id: "openai", name: "OpenAI", description: "GPT-4 powered" },
+  { id: "anthropic", name: "Anthropic", description: "Claude powered" },
 ];
+
+const CREDIT_COST_PER_THUMBNAIL = 10;
 
 export default function AIThumbnailPage() {
   const [selectedStyle, setSelectedStyle] = useState("vibrant");
   const [selectedRatio, setSelectedRatio] = useState("16:9");
+  const [titleText, setTitleText] = useState("");
+  const [addTitle, setAddTitle] = useState(true);
+  const [addEpisodeNumber, setAddEpisodeNumber] = useState(true);
+  const [addGlowEffect, setAddGlowEffect] = useState(false);
+  const [selectedAiModel, setSelectedAiModel] = useState("gemini");
+  const [selectedUploadId, setSelectedUploadId] = useState<string | null>(null);
+  const [availableUploads, setAvailableUploads] = useState<any[]>([]);
+  const [credits, setCredits] = useState(0);
+  const [monthlyUsed, setMonthlyUsed] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedThumbnails, setGeneratedThumbnails] = useState<string[]>([]);
+  const [jobs, setJobs] = useState<ThumbnailJob[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleGenerate = () => {
-    setIsGenerating(true);
-    setTimeout(() => {
-      setIsGenerating(false);
-      setGeneratedThumbnails(["thumb1", "thumb2", "thumb3"]);
-    }, 3000);
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch thumbnail jobs
+      const jobsResponse = await fetch('/api/thumbnails');
+      if (jobsResponse.ok) {
+        const jobsData = await jobsResponse.json();
+        setJobs(jobsData.jobs || []);
+        setCredits(jobsData.credits || 0);
+      }
+
+      // Fetch uploads for selection
+      const uploadsResponse = await fetch('/api/uploads?status=UPLOAD_COMPLETE');
+      if (uploadsResponse.ok) {
+        const uploadsData = await uploadsResponse.json();
+        setAvailableUploads(uploadsData.uploads || []);
+      }
+    } catch (err) {
+      console.error("Error fetching data:", err);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleGenerate = async () => {
+    if (!selectedUploadId) {
+      setError("Please select a video first");
+      return;
+    }
+
+    try {
+      setIsGenerating(true);
+      setError(null);
+
+      const response = await fetch('/api/thumbnails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uploadId: selectedUploadId,
+          style: selectedStyle,
+          aspectRatio: selectedRatio,
+          titleText,
+          addTitle,
+          addEpisodeNumber,
+          addGlowEffect,
+          aiModel: selectedAiModel,
+          variants: 3
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to generate thumbnails');
+        return;
+      }
+
+      // Refresh jobs
+      await fetchData();
+    } catch (err) {
+      setError('Failed to generate thumbnails');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    
+    if (hours < 1) return "Just now";
+    if (hours < 24) return `${hours} hours ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days} days ago`;
+    return date.toLocaleDateString();
+  };
+
+  const selectedUpload = availableUploads.find(u => u.id === selectedUploadId);
+  const estimatedCredits = CREDIT_COST_PER_THUMBNAIL * 3; // 3 variants
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -72,6 +178,49 @@ export default function AIThumbnailPage() {
               <Wand2 size={20} style={{ color: "var(--primary)" }} />
               Generate Thumbnail
             </h2>
+
+            {error && (
+              <div style={{
+                padding: "12px",
+                backgroundColor: "var(--error)",
+                borderRadius: "8px",
+                marginBottom: "16px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                color: "white"
+              }}>
+                <AlertCircle size={18} />
+                {error}
+              </div>
+            )}
+            
+            {/* Video Selection */}
+            <div style={{ marginBottom: "20px" }}>
+              <label style={{ display: "block", fontSize: "14px", fontWeight: 500, marginBottom: "8px", color: "white" }}>
+                Select Video
+              </label>
+              <select
+                value={selectedUploadId || ""}
+                onChange={(e) => setSelectedUploadId(e.target.value || null)}
+                style={{
+                  width: "100%",
+                  padding: "12px 16px",
+                  backgroundColor: "var(--surface-hover)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  color: "white",
+                  fontSize: "14px"
+                }}
+              >
+                <option value="">Choose a video...</option>
+                {availableUploads.map((upload) => (
+                  <option key={upload.id} value={upload.id}>
+                    {upload.filename}
+                  </option>
+                ))}
+              </select>
+            </div>
             
             {/* Thumbnail Preview */}
             <div style={{
@@ -99,41 +248,30 @@ export default function AIThumbnailPage() {
                 }}>
                   <Image size={28} style={{ color: "white" }} />
                 </div>
-                <p style={{ color: "var(--text-muted)", marginBottom: "8px" }}>Upload an image or select a video</p>
-                <button style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  margin: "0 auto",
-                  padding: "8px 16px",
-                  backgroundColor: "var(--surface-hover)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "8px",
-                  color: "white",
-                  cursor: "pointer"
-                }}>
-                  <Upload size={16} />
-                  Upload Image
-                </button>
+                <p style={{ color: "var(--text-muted)", marginBottom: "8px" }}>
+                  {selectedUpload ? selectedUpload.filename : "Select a video to generate thumbnails"}
+                </p>
               </div>
               
               {/* Thumbnail Overlay */}
-              <div style={{
-                position: "absolute",
-                inset: 0,
-                padding: "24px",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                alignItems: "center"
-              }}>
-                <h3 style={{ fontSize: "24px", fontWeight: "bold", color: "white", textAlign: "center", textShadow: "2px 2px 4px rgba(0,0,0,0.8)" }}>
-                  YOUR PODCAST TITLE
-                </h3>
-                <p style={{ fontSize: "16px", color: "white", marginTop: "8px", textShadow: "1px 1px 2px rgba(0,0,0,0.8)" }}>
-                  Episode #45
-                </p>
-              </div>
+              {selectedUpload && (
+                <div style={{
+                  position: "absolute",
+                  inset: 0,
+                  padding: "24px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  alignItems: "center"
+                }}>
+                  <h3 style={{ fontSize: "24px", fontWeight: "bold", color: "white", textAlign: "center", textShadow: "2px 2px 4px rgba(0,0,0,0.8)" }}>
+                    {titleText || "YOUR PODCAST TITLE"}
+                  </h3>
+                  <p style={{ fontSize: "16px", color: "white", marginTop: "8px", textShadow: "1px 1px 2px rgba(0,0,0,0.8)" }}>
+                    Episode #45
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Text Input */}
@@ -144,7 +282,8 @@ export default function AIThumbnailPage() {
               <input
                 type="text"
                 placeholder="Enter your thumbnail title..."
-                defaultValue="Growth Tips That Changed My Life"
+                value={titleText}
+                onChange={(e) => setTitleText(e.target.value)}
                 style={{
                   width: "100%",
                   padding: "12px 16px",
@@ -157,20 +296,63 @@ export default function AIThumbnailPage() {
               />
             </div>
 
+            {/* AI Model Selection */}
+            <div style={{ marginBottom: "20px" }}>
+              <label style={{ display: "block", fontSize: "14px", fontWeight: 500, marginBottom: "8px", color: "white" }}>
+                AI Model
+              </label>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {aiModels.map((model) => (
+                  <button
+                    key={model.id}
+                    onClick={() => setSelectedAiModel(model.id)}
+                    style={{
+                      flex: 1,
+                      padding: "12px",
+                      backgroundColor: selectedAiModel === model.id ? "var(--primary)" : "var(--surface-hover)",
+                      border: `1px solid ${selectedAiModel === model.id ? "var(--primary)" : "var(--border)"}`,
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      textAlign: "center"
+                    }}
+                  >
+                    <div style={{ fontWeight: 500, color: "white", marginBottom: "2px" }}>{model.name}</div>
+                    <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{model.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Credit Estimate */}
+            {selectedUpload && (
+              <div style={{
+                padding: "12px",
+                backgroundColor: "var(--surface-hover)",
+                borderRadius: "8px",
+                marginBottom: "20px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
+              }}>
+                <span style={{ color: "var(--text-muted)", fontSize: "14px" }}>Estimated credits (3 variants):</span>
+                <span style={{ color: "white", fontWeight: 600 }}>{estimatedCredits} credits</span>
+              </div>
+            )}
+
             {/* Generate Button */}
             <button
               onClick={handleGenerate}
-              disabled={isGenerating}
+              disabled={isGenerating || !selectedUploadId}
               style={{
                 width: "100%",
                 padding: "14px",
-                backgroundColor: isGenerating ? "var(--surface-hover)" : "var(--primary)",
+                backgroundColor: isGenerating || !selectedUploadId ? "var(--surface-hover)" : "var(--primary)",
                 border: "none",
                 borderRadius: "8px",
                 color: "white",
                 fontWeight: 600,
                 fontSize: "16px",
-                cursor: isGenerating ? "not-allowed" : "pointer",
+                cursor: isGenerating || !selectedUploadId ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -191,108 +373,77 @@ export default function AIThumbnailPage() {
             </button>
           </div>
 
-          {/* Generated Thumbnails */}
-          {generatedThumbnails.length > 0 && (
-            <div style={{ backgroundColor: "var(--surface)", borderRadius: "12px", border: "1px solid var(--border)", padding: "24px" }}>
-              <h2 style={{ fontSize: "18px", fontWeight: "600", marginBottom: "20px", color: "white" }}>
-                Generated Thumbnails
-              </h2>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
-                {generatedThumbnails.map((thumb, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      aspectRatio: "16/9",
-                      backgroundColor: "var(--surface-hover)",
-                      borderRadius: "8px",
-                      position: "relative",
-                      cursor: "pointer",
-                      border: "2px solid transparent"
-                    }}
-                  >
-                    <div style={{
-                      position: "absolute",
-                      inset: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center"
-                    }}>
-                      <span style={{ color: "var(--text-muted)" }}>Variant {index + 1}</span>
-                    </div>
-                    <div style={{
-                      position: "absolute",
-                      bottom: "8px",
-                      right: "8px",
-                      display: "flex",
-                      gap: "4px"
-                    }}>
-                      <button style={{
-                        width: "28px",
-                        height: "28px",
-                        backgroundColor: "var(--primary)",
-                        border: "none",
-                        borderRadius: "4px",
-                        color: "white",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center"
-                      }}>
-                        <Download size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Recent Thumbnails */}
           <div style={{ backgroundColor: "var(--surface)", borderRadius: "12px", border: "1px solid var(--border)" }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ fontSize: "16px", fontWeight: "600", color: "white" }}>Recent Thumbnails</h2>
-              <button style={{ color: "var(--primary)", fontSize: "14px", background: "none", border: "none", cursor: "pointer" }}>
-                View All
-              </button>
             </div>
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              {recentThumbnails.map((thumb) => (
-                <div
-                  key={thumb.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "12px 20px",
-                    borderBottom: "1px solid var(--border)"
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                    <div style={{
-                      width: "80px",
-                      aspectRatio: "16/9",
-                      backgroundColor: "var(--surface-hover)",
-                      borderRadius: "4px",
+            {loading ? (
+              <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
+                <RefreshCw size={24} className="animate-spin" style={{ margin: "0 auto" }} />
+              </div>
+            ) : jobs.length === 0 ? (
+              <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
+                No thumbnails generated yet
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {jobs.slice(0, 5).map((job) => (
+                  <div
+                    key={job.id}
+                    style={{
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "center"
-                    }}>
-                      <Image size={20} style={{ color: "var(--text-muted)" }} />
+                      justifyContent: "space-between",
+                      padding: "12px 20px",
+                      borderBottom: "1px solid var(--border)"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                      <div style={{
+                        width: "80px",
+                        aspectRatio: "16/9",
+                        backgroundColor: "var(--surface-hover)",
+                        borderRadius: "4px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center"
+                      }}>
+                        <Image size={20} style={{ color: "var(--text-muted)" }} />
+                      </div>
+                      <div>
+                        <p style={{ fontWeight: 500, color: "white" }}>{job.filename || 'Untitled'}</p>
+                        <p style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "2px" }}>{job.style}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p style={{ fontWeight: 500, color: "white" }}>{thumb.title}</p>
-                      <p style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "2px" }}>{thumb.style}</p>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{
+                        padding: "4px 10px",
+                        borderRadius: "4px",
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        backgroundColor: job.status === "COMPLETED" ? "var(--success)20" : 
+                                        job.status === "PROCESSING" ? "var(--warning)20" : 
+                                        job.status === "FAILED" ? "var(--error)20" : "var(--surface-hover)",
+                        color: job.status === "COMPLETED" ? "var(--success)" : 
+                              job.status === "PROCESSING" ? "var(--warning)" : 
+                              job.status === "FAILED" ? "var(--error)" : "var(--text-muted)"
+                      }}>
+                        {job.status === "COMPLETED" ? "Completed" : 
+                         job.status === "PROCESSING" ? "Processing" :
+                         job.status === "FAILED" ? "Failed" : "Pending"}
+                      </span>
+                      <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>{formatDate(job.createdAt)}</span>
+                      {job.status === "COMPLETED" && (
+                        <button style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
+                          <Download size={16} />
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>{thumb.createdAt}</span>
-                    <button style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
-                      <Download size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -373,15 +524,30 @@ export default function AIThumbnailPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
                 <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>Add title</span>
-                <input type="checkbox" defaultChecked style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
+                <input 
+                  type="checkbox" 
+                  checked={addTitle}
+                  onChange={(e) => setAddTitle(e.target.checked)}
+                  style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} 
+                />
               </label>
               <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
                 <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>Add episode number</span>
-                <input type="checkbox" defaultChecked style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
+                <input 
+                  type="checkbox" 
+                  checked={addEpisodeNumber}
+                  onChange={(e) => setAddEpisodeNumber(e.target.checked)}
+                  style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} 
+                />
               </label>
               <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
                 <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>Add glow effect</span>
-                <input type="checkbox" style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
+                <input 
+                  type="checkbox" 
+                  checked={addGlowEffect}
+                  onChange={(e) => setAddGlowEffect(e.target.checked)}
+                  style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} 
+                />
               </label>
             </div>
           </div>
@@ -393,16 +559,16 @@ export default function AIThumbnailPage() {
               <span style={{ fontSize: "14px", fontWeight: 500, color: "white" }}>Credits Usage</span>
             </div>
             <p style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "12px" }}>
-              Generating thumbnails costs <span style={{ color: "white", fontWeight: 600 }}>10 credits</span> per thumbnail.
+              Generating thumbnails costs <span style={{ color: "white", fontWeight: 600 }}>{CREDIT_COST_PER_THUMBNAIL} credits</span> per thumbnail.
             </p>
             <div style={{ padding: "12px", backgroundColor: "var(--surface-hover)", borderRadius: "8px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                 <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>Available Credits</span>
-                <span style={{ fontSize: "14px", fontWeight: 600, color: "white" }}>1,250</span>
+                <span style={{ fontSize: "14px", fontWeight: 600, color: "white" }}>{credits.toLocaleString()}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>This Month</span>
-                <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--primary)" }}>250 used</span>
+                <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--primary)" }}>{monthlyUsed} used</span>
               </div>
             </div>
           </div>

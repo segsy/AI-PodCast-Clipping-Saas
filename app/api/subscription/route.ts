@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { subscriptions, billingCustomers, creditsBalance, workspaces } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { getActiveWorkspaceId } from "@/lib/auth";
 
 // Define available plans
 export const PLANS = [
@@ -92,18 +93,22 @@ export const PLANS = [
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const workspaceId = searchParams.get("workspaceId");
-
-    if (!workspaceId) {
+    const workspaceId = await getActiveWorkspaceId();
+    
+    // Fallback to query param for backwards compatibility
+    const queryWorkspaceId = request.nextUrl.searchParams.get("workspaceId");
+    
+    if (!workspaceId && !queryWorkspaceId) {
       return NextResponse.json({ error: "Workspace ID required" }, { status: 400 });
     }
+
+    const useWorkspaceId = workspaceId || queryWorkspaceId;
 
     // Get current subscription
     const subscription = await db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.workspaceId, workspaceId))
+      .where(eq(subscriptions.workspaceId, useWorkspaceId!))
       .orderBy(desc(subscriptions.currentPeriodEnd))
       .limit(1);
 
@@ -111,7 +116,7 @@ export async function GET(request: NextRequest) {
     const credits = await db
       .select()
       .from(creditsBalance)
-      .where(eq(creditsBalance.workspaceId, workspaceId))
+      .where(eq(creditsBalance.workspaceId, useWorkspaceId!))
       .limit(1);
 
     // Get available plans
@@ -137,10 +142,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const workspaceId = await getActiveWorkspaceId();
     const body = await request.json();
-    const { workspaceId, planId, interval } = body;
+    
+    // Fallback to body workspaceId for backwards compatibility
+    const useWorkspaceId = workspaceId || body.workspaceId;
+    const { planId, interval } = body;
 
-    if (!workspaceId || !planId) {
+    if (!useWorkspaceId || !planId) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -158,7 +167,8 @@ export async function POST(request: NextRequest) {
       .insert(subscriptions)
       .values({
         id: `sub_${Date.now()}`,
-        workspaceId,
+        workspaceId: useWorkspaceId!,
+        planId,
         planId,
         interval: interval || "MONTHLY",
         status: "ACTIVE",

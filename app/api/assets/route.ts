@@ -2,22 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { assetLibrary } from "@/db/schema";
 import { eq, and, desc, like } from "drizzle-orm";
+import { getActiveWorkspaceId } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const workspaceId = searchParams.get("workspaceId");
-    const type = searchParams.get("type");
-    const folder = searchParams.get("folder");
-    const search = searchParams.get("search");
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
-
-    if (!workspaceId) {
+    const workspaceId = await getActiveWorkspaceId();
+    
+    // Fallback to query param for backwards compatibility
+    const queryWorkspaceId = request.nextUrl.searchParams.get("workspaceId");
+    
+    if (!workspaceId && !queryWorkspaceId) {
       return NextResponse.json({ error: "Workspace ID required" }, { status: 400 });
     }
 
-    const conditions = [eq(assetLibrary.workspaceId, workspaceId)];
+    const useWorkspaceId = workspaceId || queryWorkspaceId;
+    const type = request.nextUrl.searchParams.get("type");
+    const folder = request.nextUrl.searchParams.get("folder");
+    const search = request.nextUrl.searchParams.get("search");
+    const page = parseInt(request.nextUrl.searchParams.get("page") || "1");
+    const limit = parseInt(request.nextUrl.searchParams.get("limit") || "20");
+
+    const conditions = [eq(assetLibrary.workspaceId, useWorkspaceId!)];
 
     if (type) {
       conditions.push(eq(assetLibrary.type, type));
@@ -70,9 +75,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const workspaceId = await getActiveWorkspaceId();
     const body = await request.json();
+    
+    // Fallback to body workspaceId for backwards compatibility
+    const useWorkspaceId = workspaceId || body.workspaceId;
+    
     const {
-      workspaceId,
       name,
       type,
       s3Key,
@@ -88,7 +97,7 @@ export async function POST(request: NextRequest) {
       createdBy,
     } = body;
 
-    if (!workspaceId || !name || !type || !s3Key) {
+    if (!useWorkspaceId || !name || !type || !s3Key) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -101,7 +110,7 @@ export async function POST(request: NextRequest) {
       .insert(assetLibrary)
       .values({
         id,
-        workspaceId,
+        workspaceId: useWorkspaceId!,
         name,
         type,
         s3Key,

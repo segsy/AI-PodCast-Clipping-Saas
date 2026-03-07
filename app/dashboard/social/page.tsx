@@ -15,19 +15,36 @@ import {
 import { useRouter } from "next/navigation";
 import { getCurrentSubscription } from "@/lib/billing";
 
-const platforms = [
-  { name: "YouTube", icon: "📺", color: "#FF0000", connected: true, username: "@podcastclips" },
-  { name: "TikTok", icon: "🎵", color: "#000000", connected: true, username: "@podcastclips" },
-  { name: "Instagram", icon: "📸", color: "#E1306C", connected: false },
-  { name: "Facebook", icon: "📘", color: "#1877F2", connected: false },
-  { name: "LinkedIn", icon: "💼", color: "#0A66C2", connected: true, username: "Podcast Clips" },
-  { name: "X", icon: "🐦", color: "#1DA1F2", connected: false },
+// All available platforms
+const allPlatforms = [
+  { name: "YouTube", key: "YOUTUBE", icon: "📺", color: "#FF0000" },
+  { name: "TikTok", key: "TIKTOK", icon: "🎵", color: "#000000" },
+  { name: "Instagram", key: "INSTAGRAM", icon: "📸", color: "#E1306C" },
+  { name: "Facebook", key: "FACEBOOK", icon: "📘", color: "#1877F2" },
+  { name: "LinkedIn", key: "LINKEDIN", icon: "💼", color: "#0A66C2" },
+  { name: "X", key: "TWITTER", icon: "🐦", color: "#1DA1F2" },
 ];
+
+// Map database platform to display platform
+const getPlatformInfo = (platformKey: string) => {
+  return allPlatforms.find(p => p.key === platformKey) || { name: platformKey, key: platformKey, icon: "📱", color: "#666666" };
+};
+
+interface ConnectedAccount {
+  id: string;
+  platform: string;
+  platformUsername: string | null;
+  platformProfileUrl: string | null;
+  platformProfileImage: string | null;
+  status: string;
+  createdAt: string;
+}
 
 export default function SocialAccountsPage() {
   const router = useRouter();
   const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<string>("");
   const [connecting, setConnecting] = useState(false);
@@ -45,6 +62,14 @@ export default function SocialAccountsPage() {
       try {
         const sub = await getCurrentSubscription();
         setSubscription(sub);
+        
+        // Fetch connected accounts from database
+        const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
+        const response = await fetch(`/api/social-accounts?workspaceId=${workspaceId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setConnectedAccounts(data.accounts || []);
+        }
       } catch (error) {
         console.error("Failed to check subscription:", error);
       } finally {
@@ -81,8 +106,31 @@ export default function SocialAccountsPage() {
     
     setConnecting(true);
     try {
-      // Simulate OAuth flow
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
+      const platformKey = allPlatforms.find(p => p.name === selectedPlatform)?.key || selectedPlatform;
+      
+      // In production, this would trigger OAuth flow with the platform
+      // For now, we'll simulate the connection
+      const response = await fetch("/api/social-accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspaceId,
+          platform: platformKey,
+          platformAccountId: `demo_${Date.now()}`,
+          platformUsername: `@demo_${selectedPlatform.toLowerCase()}`,
+          platformProfileUrl: `https://${selectedPlatform.toLowerCase()}.com/demo`,
+          status: "CONNECTED",
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.account) {
+          setConnectedAccounts([...connectedAccounts, data.account]);
+        }
+      }
+      
       setShowAddModal(false);
       setSelectedPlatform("");
     } catch (error) {
@@ -92,8 +140,34 @@ export default function SocialAccountsPage() {
     }
   };
 
-  const connectedPlatforms = platforms.filter(platform => platform.connected);
-  const availablePlatforms = platforms.filter(platform => !platform.connected);
+  // Handle disconnect account
+  const handleDisconnectAccount = async (accountId: string) => {
+    try {
+      const workspaceId = localStorage.getItem("workspaceId") || "demo-workspace";
+      await fetch(`/api/social-accounts?id=${accountId}&workspaceId=${workspaceId}`, {
+        method: "DELETE",
+      });
+      setConnectedAccounts(connectedAccounts.filter(acc => acc.id !== accountId));
+    } catch (error) {
+      console.error("Failed to disconnect account:", error);
+    }
+  };
+
+  // Check if a platform is connected
+  const isPlatformConnected = (platformName: string) => {
+    const platformKey = allPlatforms.find(p => p.name === platformName)?.key;
+    return connectedAccounts.some(acc => acc.platform === platformKey);
+  };
+
+  // Get connected account for a platform
+  const getConnectedAccount = (platformName: string) => {
+    const platformKey = allPlatforms.find(p => p.name === platformName)?.key;
+    return connectedAccounts.find(acc => acc.platform === platformKey);
+  };
+
+  // Get connected and available platforms based on database data
+  const connectedPlatforms = allPlatforms.filter(platform => isPlatformConnected(platform.name));
+  const availablePlatforms = allPlatforms.filter(platform => !isPlatformConnected(platform.name));
 
   if (loading) {
     return (
@@ -214,7 +288,7 @@ export default function SocialAccountsPage() {
                   )}
                 </button>
                 
-                {platforms.map((platform) => (
+                {allPlatforms.map((platform) => (
                   <button
                     key={platform.name}
                     onClick={() => {
@@ -229,7 +303,7 @@ export default function SocialAccountsPage() {
                       padding: "12px 16px",
                       backgroundColor: selectedFilterPlatform === platform.name ? "var(--primary)/10" : "transparent",
                       border: "none",
-                      borderBottom: platform.name !== platforms[platforms.length - 1].name ? "1px solid var(--border)" : "none",
+                      borderBottom: platform.name !== allPlatforms[allPlatforms.length - 1].name ? "1px solid var(--border)" : "none",
                       color: "white",
                       cursor: "pointer",
                       textAlign: "left"
@@ -248,10 +322,10 @@ export default function SocialAccountsPage() {
                       {platform.icon}
                     </div>
                     <span style={{ flex: 1 }}>{platform.name}</span>
-                    {platform.connected && (
+                    {isPlatformConnected(platform.name) && (
                       <CheckCircle2 size={16} style={{ color: "var(--success)" }} />
                     )}
-                    {selectedFilterPlatform === platform.name && !platform.connected && (
+                    {selectedFilterPlatform === platform.name && !isPlatformConnected(platform.name) && (
                       <CheckCircle2 size={16} style={{ color: "var(--primary)" }} />
                     )}
                   </button>
@@ -306,7 +380,7 @@ export default function SocialAccountsPage() {
       </div>
 
       {/* Connected Accounts */}
-      {connectedPlatforms.length > 0 && (
+      {connectedAccounts.length > 0 && (
         <div style={{ backgroundColor: "var(--surface)", borderRadius: "12px", border: "1px solid var(--border)" }}>
           <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h2 style={{ fontSize: "16px", fontWeight: "600", color: "white" }}>Connected Accounts</h2>
@@ -318,65 +392,70 @@ export default function SocialAccountsPage() {
               fontSize: "12px", 
               fontWeight: "500" 
             }}>
-              {connectedPlatforms.length} connected
+              {connectedAccounts.length} connected
             </span>
           </div>
           <div style={{ padding: "16px 20px" }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px" }}>
-              {connectedPlatforms.map((platform) => (
-                <div key={platform.name} style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "16px",
-                  backgroundColor: "var(--background)",
-                  borderRadius: "8px",
-                  border: "1px solid var(--border)"
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                    <div style={{
-                      width: "48px",
-                      height: "48px",
-                      backgroundColor: platform.color + "20",
-                      borderRadius: "8px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "24px"
-                    }}>
-                      {platform.icon}
+              {connectedAccounts.map((account) => {
+                const platformInfo = getPlatformInfo(account.platform);
+                return (
+                  <div key={account.id} style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "16px",
+                    backgroundColor: "var(--background)",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border)"
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                      <div style={{
+                        width: "48px",
+                        height: "48px",
+                        backgroundColor: platformInfo.color + "20",
+                        borderRadius: "8px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "24px"
+                      }}>
+                        {platformInfo.icon}
+                      </div>
+                      <div>
+                        <p style={{ fontWeight: 500, color: "white", marginBottom: "4px" }}>{platformInfo.name}</p>
+                        <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>{account.platformUsername || "Connected"}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p style={{ fontWeight: 500, color: "white", marginBottom: "4px" }}>{platform.name}</p>
-                      <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>{platform.username}</p>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button style={{
+                        background: "none",
+                        border: "1px solid var(--border)",
+                        color: "var(--text-secondary)",
+                        padding: "6px 12px",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        fontSize: "12px"
+                      }}>
+                        <Settings size={14} />
+                      </button>
+                      <button 
+                        onClick={() => handleDisconnectAccount(account.id)}
+                        style={{
+                          background: "none",
+                          border: "1px solid rgba(239, 68, 68, 0.3)",
+                          color: "var(--error)",
+                          padding: "6px 12px",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "12px"
+                        }}>
+                        <X size={14} />
+                      </button>
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button style={{
-                      background: "none",
-                      border: "1px solid var(--border)",
-                      color: "var(--text-secondary)",
-                      padding: "6px 12px",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      fontSize: "12px"
-                    }}>
-                      <Settings size={14} />
-                    </button>
-                    <button style={{
-                      background: "none",
-                      border: "1px solid var(--error)/30",
-                      color: "var(--error)",
-                      padding: "6px 12px",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      fontSize: "12px"
-                    }}>
-                      <X size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -502,7 +581,7 @@ export default function SocialAccountsPage() {
                 borderRadius: "8px",
                 padding: "8px"
               }}>
-                {platforms.map((platform) => (
+                {allPlatforms.map((platform) => (
                   <div
                     key={platform.name}
                     onClick={() => setSelectedPlatform(platform.name)}
@@ -534,7 +613,7 @@ export default function SocialAccountsPage() {
                     <div style={{ flex: 1 }}>
                       <p style={{ fontWeight: 500, color: "white", marginBottom: "2px" }}>{platform.name}</p>
                       <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                        {platform.connected ? "Already connected" : "Connect your account"}
+                        {isPlatformConnected(platform.name) ? "Already connected" : "Connect your account"}
                       </p>
                     </div>
                     {selectedPlatform === platform.name && (
@@ -725,7 +804,7 @@ export default function SocialAccountsPage() {
 
             {/* Pro Platforms Grid */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px", marginBottom: "24px" }}>
-              {platforms.map((platform) => (
+              {allPlatforms.map((platform) => (
                 <button
                   key={platform.name}
                   onClick={() => {

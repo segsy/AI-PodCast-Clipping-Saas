@@ -227,6 +227,87 @@ export const adminUsersTable = pgTable("admin_users", {
     .defaultNow(),
 });
 
+// Team Invitations
+export const teamInvitations = pgTable("team_invitations", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  role: memberRoleEnum("role").notNull().default("MEMBER"),
+  status: text("status").notNull().default("PENDING"),
+  invitedBy: text("invited_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+}, (table) => ({
+  workspaceIdx: index("team_invitations_workspace_idx").on(table.workspaceId),
+}));
+
+// AI Caption Generation Jobs
+export const captionJobs = pgTable("caption_jobs", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  uploadId: text("upload_id").references(() => uploads.id, { onDelete: "cascade" }),
+  projectId: text("project_id").references(() => projects.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("PENDING"),
+  style: text("style").notNull().default("modern"),
+  fontSize: text("font_size").notNull().default("medium"),
+  showTimestamps: boolean("show_timestamps").notNull().default(true),
+  speakerIdentification: boolean("speaker_identification").notNull().default(true),
+  soundEffects: boolean("sound_effects").notNull().default(false),
+  aiModel: text("ai_model").notNull().default("gemini"),
+  creditsUsed: integer("credits_used").notNull().default(0),
+  durationSec: integer("duration_sec"),
+  s3Key: text("s3_key"),
+  errorMessage: text("error_message"),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+}, (table) => ({
+  workspaceIdx: index("caption_jobs_workspace_idx").on(table.workspaceId),
+}));
+
+// AI Thumbnail Generation Jobs
+export const thumbnailJobs = pgTable("thumbnail_jobs", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  uploadId: text("upload_id").references(() => uploads.id, { onDelete: "cascade" }),
+  projectId: text("project_id").references(() => projects.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("PENDING"),
+  style: text("style").notNull().default("vibrant"),
+  aspectRatio: text("aspect_ratio").notNull().default("16:9"),
+  titleText: text("title_text"),
+  addTitle: boolean("add_title").notNull().default(true),
+  addEpisodeNumber: boolean("add_episode_number").notNull().default(true),
+  addGlowEffect: boolean("add_glow_effect").notNull().default(false),
+  aiModel: text("ai_model").notNull().default("gemini"),
+  creditsUsed: integer("credits_used").notNull().default(0),
+  generatedVariants: jsonb("generated_variants").notNull().default([]),
+  s3Key: text("s3_key"),
+  errorMessage: text("error_message"),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+}, (table) => ({
+  workspaceIdx: index("thumbnail_jobs_workspace_idx").on(table.workspaceId),
+}));
+
 // ============================================================================
 // 4) Projects + Uploads + Jobs + Clips + Assets
 // ============================================================================

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Upload, 
   Film, 
@@ -16,8 +16,51 @@ import {
   FolderOpen,
   Plus,
   X,
-  Video
+  Video,
+  Loader2
 } from "lucide-react";
+
+interface UploadItem {
+  id: string;
+  filename: string;
+  contentType: string;
+  bytes: number;
+  durationSec: number | null;
+  status: string;
+  s3Key: string;
+  createdAt: string;
+  projectName: string | null;
+  // Legacy fields
+  title?: string;
+  duration?: string;
+  size?: string;
+  progress?: number;
+  uploadedAt?: string;
+  thumbnail?: string | null;
+}
+
+interface UploadStats {
+  total: number;
+  completed: number;
+  uploading: number;
+  failed: number;
+  totalSize: number;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function formatDuration(seconds: number | null): string {
+  if (!seconds) return "0:00";
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
 
 const uploads = [
   { 
@@ -103,16 +146,58 @@ export default function UploadsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploads, setUploads] = useState<UploadItem[]>([]);
+  const [stats, setStats] = useState<UploadStats>({ total: 0, completed: 0, uploading: 0, failed: 0, totalSize: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchUploads();
+  }, [statusFilter]);
+
+  const fetchUploads = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (statusFilter !== "all") {
+        params.append("status", statusFilter.toUpperCase());
+      }
+      
+      const response = await fetch(`/api/uploads?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        // Transform API data to match component expectations
+        const transformedUploads = (data.uploads || []).map((u: any) => ({
+          ...u,
+          title: u.filename,
+          duration: formatDuration(u.durationSec),
+          size: formatBytes(u.bytes),
+          progress: u.status === "UPLOAD_COMPLETE" ? 100 : (u.status === "UPLOADING" ? 50 : 0),
+          uploadedAt: new Date(u.createdAt).toLocaleDateString(),
+          // Map status to lowercase
+          status: u.status === "UPLOAD_COMPLETE" ? "completed" : 
+                  u.status === "UPLOADING" ? "uploading" : 
+                  u.status === "FAILED" ? "failed" : 
+                  u.status === "UPLOAD_READY" ? "queued" : "completed",
+        }));
+        setUploads(transformedUploads);
+        setStats(data.stats || { total: 0, completed: 0, uploading: 0, failed: 0, totalSize: 0 });
+      }
+    } catch (error) {
+      console.error("Error fetching uploads:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredUploads = uploads.filter(upload => {
-    const matchesSearch = upload.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || upload.status === statusFilter;
+    const matchesSearch = (upload.title || upload.filename || "").toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || upload.status?.toLowerCase() === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const completedCount = uploads.filter(u => u.status === "completed").length;
-  const uploadingCount = uploads.filter(u => u.status === "uploading").length;
-  const totalSize = uploads.reduce((acc, u) => acc + parseFloat(u.size), 0);
+  const completedCount = stats.completed;
+  const uploadingCount = stats.uploading;
+  const totalSize = stats.totalSize;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -123,7 +208,7 @@ export default function UploadsPage() {
           <p style={{ color: "var(--text-secondary)", marginTop: "4px" }}>Manage your video uploads</p>
         </div>
         <button 
-          onClick={() => setShowUploadModal(true)}
+          onClick={() => window.location.href = '/dashboard/editor'}
           style={{
             display: "flex",
             alignItems: "center",
@@ -151,7 +236,7 @@ export default function UploadsPage() {
             </div>
             <div>
               <p style={{ color: "var(--text-muted)", fontSize: "14px" }}>Total Uploads</p>
-              <p style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>{uploads.length}</p>
+              <p style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>{stats.total}</p>
             </div>
           </div>
         </div>
@@ -162,7 +247,7 @@ export default function UploadsPage() {
             </div>
             <div>
               <p style={{ color: "var(--text-muted)", fontSize: "14px" }}>Completed</p>
-              <p style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>{completedCount}</p>
+              <p style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>{stats.completed}</p>
             </div>
           </div>
         </div>
@@ -184,7 +269,7 @@ export default function UploadsPage() {
             </div>
             <div>
               <p style={{ color: "var(--text-muted)", fontSize: "14px" }}>Total Size</p>
-              <p style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>{totalSize.toFixed(1)} GB</p>
+              <p style={{ fontSize: "24px", fontWeight: "bold", color: "white" }}>{formatBytes(totalSize)}</p>
             </div>
           </div>
         </div>

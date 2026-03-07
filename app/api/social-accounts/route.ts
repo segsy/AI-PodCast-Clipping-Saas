@@ -2,22 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { socialAccounts } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { getActiveWorkspaceId } from "@/lib/auth";
 
 type Platform = "YOUTUBE" | "TIKTOK" | "INSTAGRAM" | "FACEBOOK" | "TWITTER" | "LINKEDIN" | "PINTEREST" | "SNAPCHAT";
 type AccountStatus = "CONNECTED" | "DISCONNECTED" | "EXPIRED" | "ERROR";
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const workspaceId = searchParams.get("workspaceId");
-    const platform = searchParams.get("platform") as Platform | null;
-    const status = searchParams.get("status") as AccountStatus | null;
-
+    const workspaceId = await getActiveWorkspaceId();
+    
     if (!workspaceId) {
-      return NextResponse.json({ error: "Workspace ID required" }, { status: 400 });
+      // Fallback to query param for backwards compatibility
+      const searchParams = request.nextUrl.searchParams;
+      const queryWorkspaceId = searchParams.get("workspaceId");
+      if (!queryWorkspaceId) {
+        return NextResponse.json({ error: "Workspace ID required" }, { status: 400 });
+      }
     }
 
-    const conditions = [eq(socialAccounts.workspaceId, workspaceId)];
+    const useWorkspaceId = workspaceId || request.nextUrl.searchParams.get("workspaceId");
+    const platform = request.nextUrl.searchParams.get("platform") as Platform | null;
+    const status = request.nextUrl.searchParams.get("status") as AccountStatus | null;
+
+    const conditions = [eq(socialAccounts.workspaceId, useWorkspaceId!)];
 
     if (platform) {
       conditions.push(eq(socialAccounts.platform, platform));
@@ -53,9 +60,22 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const workspaceId = await getActiveWorkspaceId();
+    const searchParams = request.nextUrl.searchParams;
+    const queryWorkspaceId = searchParams.get("workspaceId");
     const body = await request.json();
+    
+    // Use session workspaceId or fall back to body/query
+    const useWorkspaceId = workspaceId || queryWorkspaceId || body.workspaceId;
+    
+    if (!useWorkspaceId) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
     const {
-      workspaceId,
       userId,
       platform,
       platformAccountId,
@@ -67,20 +87,13 @@ export async function POST(request: NextRequest) {
       tokenExpiresAt,
     } = body;
 
-    if (!workspaceId || !platform || !platformAccountId) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
-
     // Check if account already exists
     const existing = await db
       .select()
       .from(socialAccounts)
       .where(
         and(
-          eq(socialAccounts.workspaceId, workspaceId),
+          eq(socialAccounts.workspaceId, useWorkspaceId!),
           eq(socialAccounts.platform, platform),
           eq(socialAccounts.platformAccountId, platformAccountId)
         )
@@ -113,7 +126,8 @@ export async function POST(request: NextRequest) {
       .insert(socialAccounts)
       .values({
         id,
-        workspaceId,
+        workspaceId: useWorkspaceId!,
+        userId,
         userId,
         platform,
         platformAccountId,
@@ -131,5 +145,36 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Error creating social account:", error);
     return NextResponse.json({ error: "Failed to create account" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const workspaceId = await getActiveWorkspaceId();
+    const searchParams = request.nextUrl.searchParams;
+    const accountId = searchParams.get("id");
+    const queryWorkspaceId = searchParams.get("workspaceId");
+
+    // Use session workspaceId or fall back to query
+    const useWorkspaceId = workspaceId || queryWorkspaceId;
+
+    if (!accountId || !useWorkspaceId) {
+      return NextResponse.json({ error: "Account ID and Workspace ID required" }, { status: 400 });
+    }
+
+    // Delete the social account
+    await db
+      .delete(socialAccounts)
+      .where(
+        and(
+          eq(socialAccounts.id, accountId),
+          eq(socialAccounts.workspaceId, useWorkspaceId)
+        )
+      );
+
+    return NextResponse.json({ message: "Account disconnected successfully" });
+  } catch (error) {
+    console.error("Error deleting social account:", error);
+    return NextResponse.json({ error: "Failed to delete account" }, { status: 500 });
   }
 }
