@@ -1,7 +1,0 @@
-node_modules/
-.vscode
-.next/
-.DS_Store
-npm-debug.log*
-.env
-"`n# Python env/cache`n**/aipodcast_venv/`n**/.venv/`n**/venv/`n**/__pycache__/`n**/*.pyc`n"

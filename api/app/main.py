@@ -2,18 +2,42 @@ from enum import Enum
 from pathlib import Path
 from tempfile import gettempdir
 from typing import List
+import os
 import shutil
 import subprocess
 import uuid
 
 import httpx
+import logging
+import inngest
+import inngest.fast_api
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, HttpUrl
+
+load_dotenv()
 
 from .api.clips_enhance import configure_clip_store, router as enhance_router
 from .subtitles import SubtitleSegment, generate_srt, slice_transcript
 
 app = FastAPI(title="AI Podcast Clipping API", version="0.1.0")
+
+# Create an Inngest client
+inngest_client = inngest.Inngest(
+    app_id="fast_api_example",
+    signing_key=os.getenv("INNGEST_SIGNING_KEY"),
+    logger=logging.getLogger("uvicorn"),
+)
+
+# Create an Inngest function
+@inngest_client.create_function(
+    fn_id="my_function",
+    # Event that triggers this function
+    trigger=inngest.TriggerEvent(event="app/my_function"),
+)
+async def my_function(ctx: inngest.Context) -> str:
+    ctx.logger.info(ctx.event)
+    return "done"
 
 
 class JobStatus(str, Enum):
@@ -47,7 +71,7 @@ CLIPS_DB: dict[str, dict] = {
         "id": "clip_1",
         "podcast_id": "pod_1",
         "title": "Founder lesson on retention",
-        "url": "https://example.com/clips/clip_1.mp4",
+        "url": "https://ai-pod-cast-clipping-saas-hdwq.vercel.app/clips/clip_1.mp4",
         "duration_sec": 58.0,
         "viral_score": 91,
         "transcript_json": [
@@ -60,7 +84,7 @@ CLIPS_DB: dict[str, dict] = {
         "id": "clip_2",
         "podcast_id": "pod_1",
         "title": "3 growth tactics that worked",
-        "url": "https://example.com/clips/clip_2.mp4",
+        "url": "https://ai-pod-cast-clipping-saas-hdwq.vercel.app/clips/clip_2.mp4",
         "duration_sec": 45.0,
         "viral_score": 86,
         "transcript_json": [
@@ -74,11 +98,14 @@ CLIPS_DB: dict[str, dict] = {
 configure_clip_store(CLIPS_DB)
 app.include_router(enhance_router)
 
+# Serve the Inngest endpoint
+inngest.fast_api.serve(app, inngest_client, [my_function])
+
+
 
 @app.get("/health")
 def health() -> dict:
     return {"ok": True}
-
 
 @app.post("/process", response_model=ProcessResponse)
 def process_podcast(payload: ProcessRequest) -> ProcessResponse:
@@ -165,7 +192,7 @@ def _burn_subtitles(input_video_path: Path, srt_path: Path, output_video_path: P
 
 
 def _upload_final_clip(local_file_path: Path) -> str:
-    return f"https://example.com/generated/{local_file_path.name}"
+    return f"https://ai-pod-cast-clipping-saas-hdwq.vercel.app/generated/{local_file_path.name}"
 
 
 def _build_word_timings(segments: list[SubtitleSegment]) -> list[dict]:
