@@ -1,0 +1,30 @@
+# Video Processing API Dependencies
+fastapi==0.115.0
+uvicorn==0.30.6
+pydantic==2.9.2
+pydantic-settings==2.6.1
+httpx==0.27.2
+python-multipart==0.0.17
+aiofiles==24.1.0
+
+# Database - using Drizzle ORM instead (see db/ in main app)
+# sqlalchemy==2.0.36  # NOT USED - removed to fix bundle size
+# alembic==1.14.0    # NOT USED - removed to fix bundle size
+asyncpg==0.30.0
+
+# Storage - optional, only used in try/except
+# boto3==1.37.0  # Deferred to runtime installation
+
+# Video Processing
+# moviepy==1.0.3  # NOT USED - removed to fix bundle size (saves ~200 MB)
+
+# Background Tasks - optional for local dev
+# celery==5.4.0  # NOT USED - removed to fix bundle size
+redis==5.2.1
+
+# AI/ML
+# google-generativeai==0.8.3  # NOT USED - removed to fix bundle size
+
+# Utilities
+python-dotenv==1.2.2
+python-dateutil==2.9.0
