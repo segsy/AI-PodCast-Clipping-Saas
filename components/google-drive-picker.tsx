@@ -222,10 +222,10 @@ export default function GoogleDrivePicker({ onFileSelect, onClose }: GoogleDrive
         <div className="flex flex-col items-center justify-center p-8 text-red-500">
           <AlertCircle className="w-12 h-12 mb-2" />
           <p>{error}</p>
-          <button
-            onClick={() => loadFiles(currentFolder)}
-            className="mt-4 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg"
-          >
+           <button
+             onClick={() => loadFiles(currentFolder || undefined)}
+             className="mt-4 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg"
+           >
             Try Again
           </button>
         </div>
