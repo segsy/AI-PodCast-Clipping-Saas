@@ -1,7 +1,13 @@
 const { withSentryConfig } = require("@sentry/nextjs");
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  // Configure Turbopack to use this directory as the root for package resolution
+  // This resolves the issue with multiple lockfiles being detected
+  turbopack: {
+    root: __dirname,
+  },
+};
 
 module.exports = withSentryConfig(nextConfig, {
   // For all available options, see:

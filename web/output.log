@@ -1,0 +1,15 @@
+
+> dev
+> next dev --port 3000 --turbopack -p 3000
+
+   ▲ Next.js 16.0.11 (Turbopack)
+   - Local:         http://localhost:3000
+   - Network:       http://192.168.0.101:3000
+   - Environments: .env
+   - Experiments (use with caution):
+     · clientTraceMetadata
+
+ ✓ Starting...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+
+c:\Users\LENOVO\Documents\Exercise\Saas\AI-Podcast-clips\apps\web>

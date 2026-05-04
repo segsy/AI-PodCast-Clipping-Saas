@@ -216,18 +216,13 @@ const SocialAccountsPopup = ({ isOpen, onClose, isProUser, onSelectPlatform, onU
     }
   };
 
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end" onClick={handleBackdropClick}>
+    <div className="fixed inset-0 z-50 flex items-start justify-end">
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
         aria-hidden="true"
+        onClick={onClose}
       />
       
       {/* Popup Panel */}
@@ -349,18 +344,13 @@ const ProModal = ({ isOpen, onClose, onUpgrade }: ProModalProps) => {
 
   if (!isOpen) return null;
 
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
-
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center" onClick={handleBackdropClick}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
         aria-hidden="true"
+        onClick={onClose}
       />
       
       {/* Modal */}
@@ -699,24 +689,17 @@ const UploadModal = ({ isOpen, onClose, service }: UploadModalProps) => {
       document.removeEventListener('keydown', handleEscape);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose]);
+    }, [isOpen, onClose]);
 
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Only close if clicking the backdrop, not the modal content
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
+  if (!isOpen) return null;
 
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={handleBackdropClick}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
         aria-hidden="true"
+        onClick={onClose}
       />
       
       {/* Modal - scrollable on mobile */}
@@ -748,9 +731,10 @@ const UploadModal = ({ isOpen, onClose, service }: UploadModalProps) => {
           <div className="flex gap-2 mb-6">
             <button
               onClick={() => setActiveTab("upload")}
+              type="button"
               className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                activeTab === "upload" 
-                  ? "bg-primary text-white" 
+                activeTab === "upload"
+                  ? "bg-primary text-white"
                   : "bg-surface-hover text-text-secondary hover:text-white"
               }`}
             >
@@ -759,9 +743,10 @@ const UploadModal = ({ isOpen, onClose, service }: UploadModalProps) => {
             </button>
             <button
               onClick={() => setActiveTab("link")}
+              type="button"
               className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                activeTab === "link" 
-                  ? "bg-primary text-white" 
+                activeTab === "link"
+                  ? "bg-primary text-white"
                   : "bg-surface-hover text-text-secondary hover:text-white"
               }`}
             >
@@ -830,15 +815,17 @@ const UploadModal = ({ isOpen, onClose, service }: UploadModalProps) => {
                   </div>
                 </div>
                 <div className="flex items-center justify-center gap-4 flex-wrap">
-                  <button 
+                  <button
                     onClick={() => fileInputRef.current?.click()}
+                    type="button"
                     className="px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover transition-colors"
                   >
                     Browse Files
                   </button>
-                  <button 
+                  <button
                     onClick={handleGoogleDriveClick}
                     disabled={isLoadingGoogleDrive}
+                    type="button"
                     className="px-6 py-3 bg-surface border border-border text-white rounded-lg font-medium hover:bg-surface-hover transition-colors flex items-center gap-2 disabled:opacity-50"
                   >
                     {isLoadingGoogleDrive ? (
@@ -912,6 +899,7 @@ const UploadModal = ({ isOpen, onClose, service }: UploadModalProps) => {
                     key={platform.name}
                     onClick={() => setUrlPlatform(platform.name)}
                     disabled={isUploading}
+                    type="button"
                     className={`p-4 bg-background border rounded-xl text-white font-medium hover:border-primary/50 hover:bg-surface-hover transition-colors text-left flex items-center gap-3 disabled:opacity-50 ${
                       urlPlatform === platform.name ? "border-primary bg-primary/10" : "border-border"
                     }`}
@@ -940,9 +928,10 @@ const UploadModal = ({ isOpen, onClose, service }: UploadModalProps) => {
               </div>
               
               {/* Import Button */}
-              <button 
+              <button
                 onClick={handleUrlImport}
                 disabled={!videoUrl || !urlPlatform || isUploading}
+                type="button"
                 className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isUploading ? (
@@ -982,8 +971,9 @@ const UploadModal = ({ isOpen, onClose, service }: UploadModalProps) => {
             Cancel
           </button>
           {selectedFile && !isUploading && (
-            <button 
+            <button
               onClick={handleUpload}
+              type="button"
               className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary-hover transition-colors"
             >
               <Upload className="w-5 h-5" />
@@ -1009,9 +999,10 @@ const FeatureIcon = ({ service, onClick, isActive }: FeatureIconProps) => {
   return (
     <button
       onClick={onClick}
+      type="button"
       className={`flex flex-col items-center gap-2 p-4 rounded-xl transition-all duration-300 ${
-        isActive 
-          ? "bg-primary/20 border-2 border-primary" 
+        isActive
+          ? "bg-primary/20 border-2 border-primary"
           : "bg-surface hover:bg-surface-hover border-2 border-transparent hover:border-border"
       }`}
       aria-label={`Open ${service.title}`}
@@ -1131,13 +1122,7 @@ export default function DashboardPage() {
     }
   };
 
-  // Handle upload button click - opens upload modal
-  const handleUploadClick = () => {
-    setSelectedService(services[0]); // Default to first service (long-to-shorts)
-    setIsModalOpen(true);
-  };
-
-  const closeModal = React.useCallback(() => {
+const closeModal = React.useCallback(() => {
     setIsModalOpen(false);
     setSelectedService(null);
   }, []);
@@ -1166,8 +1151,9 @@ export default function DashboardPage() {
           </div>
           
           {/* Social Accounts Attachment Icon Button */}
-          <button 
+          <button
             onClick={handleSocialAccountsClick}
+            type="button"
             className="flex items-center gap-2 px-4 py-2.5 bg-surface border border-border rounded-xl hover:border-primary/50 hover:bg-surface-hover transition-all duration-300 group"
           >
             <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center group-hover:bg-primary/30 transition-colors">
@@ -1201,7 +1187,6 @@ export default function DashboardPage() {
           {/* Quick Upload Button */}
           <div className="mt-4 flex justify-center">
             <button 
-              onClick={handleUploadClick}
               className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-primary to-accent text-white rounded-xl font-bold text-lg hover:opacity-90 transition-opacity shadow-lg shadow-primary/25"
             >
               <Upload className="w-6 h-6" />

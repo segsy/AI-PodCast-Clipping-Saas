@@ -49,12 +49,12 @@ function Toast({ message, type, onClose }: { message: string; type: 'success' | 
 
 // All available platforms
 const allPlatforms = [
-  { name: "YouTube", key: "YOUTUBE", icon: "ðŸ“º", color: "#FF0000" },
-  { name: "TikTok", key: "TIKTOK", icon: "ðŸŽµ", color: "#000000" },
-  { name: "Instagram", key: "INSTAGRAM", icon: "ðŸ“¸", color: "#E1306C" },
-  { name: "Facebook", key: "FACEBOOK", icon: "ðŸ“˜", color: "#1877F2" },
-  { name: "LinkedIn", key: "LINKEDIN", icon: "ðŸ’¼", color: "#0A66C2" },
-  { name: "X", key: "TWITTER", icon: "ðŸ¦", color: "#1DA1F2" },
+  { name: "YouTube", key: "YOUTUBE", icon: "YouTubeIcon", color: "#FF0000" },
+  { name: "TikTok", key: "TIKTOK", icon: "TikTokIcon", color: "#000000" },
+  { name: "Instagram", key: "INSTAGRAM", icon: "InstagramIcon", color: "#E1306C" },
+  { name: "Facebook", key: "FACEBOOK", icon: "FacebookIcon", color: "#1877F2" },
+  { name: "LinkedIn", key: "LINKEDIN", icon: "LinkedInIcon", color: "#0A66C2" },
+  { name: "X", key: "TWITTER", icon: "XIcon", color: "#1DA1F2" },
 ];
 
 // Map database platform to display platform

@@ -93,9 +93,21 @@ export default function HomePage() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
-  
-  // Form state
-  const [formEmail, setFormEmail] = useState("");
+
+  // Close modal on Escape key
+  useEffect(() => {
+    if (!activeModal) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveModal(null);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [activeModal, setActiveModal]);
+
+   // Form state
+   const [formEmail, setFormEmail] = useState("");
   const [formPassword, setFormPassword] = useState("");
   const [formName, setFormName] = useState("");
   const [formError, setFormError] = useState("");
@@ -234,6 +246,9 @@ export default function HomePage() {
     { value: "500K+", label: "Active Users" },
     { value: "50M+", label: "Views Generated" }
   ];
+
+  // Feature IDs that should open a modal (instead of navigating)
+  const modalFeatureIds = ["long-to-shorts", "ai-captions", "video-editor", "enhance-speech", "ai-reframe", "ai-b-roll", "ai-hook"];
 
   return (
     <div className="min-h-screen bg-background">
@@ -1197,7 +1212,18 @@ export default function HomePage() {
             ].map((feature, index) => (
               <button
                 key={index}
-                onClick={() => setActiveModal(feature.id)}
+                onClick={() => {
+                  if (modalFeatureIds.includes(feature.id)) {
+                    setActiveModal(feature.id);
+                  } else {
+                    const routeMap: Record<string, string> = {
+                      "reframe-video": "/features/ai-reframe",
+                      "b-roll": "/features/ai-broll"
+                    };
+                    const destination = routeMap[feature.id] || "/";
+                    router.push(destination);
+                  }
+                }}
                 className="flex flex-col items-center gap-3 p-4 rounded-xl hover:bg-background transition-colors group"
               >
                 <div className="w-16 h-16 bg-primary/10 rounded-lg flex items-center justify-center group-hover:bg-primary group-hover:scale-110 transition-all">
@@ -1342,8 +1368,8 @@ export default function HomePage() {
           style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
           onClick={() => setActiveModal(null)}
         >
-          <div 
-            className="bg-surface border border-border rounded-2xl p-8 w-full max-w-md mx-4"
+          <div
+            className="bg-surface border border-border rounded-2xl p-8 w-full max-w-md mx-4 relative"
             style={{ boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)' }}
             onClick={(e) => e.stopPropagation()}
           >
