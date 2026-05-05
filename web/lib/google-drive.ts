@@ -1,4 +1,4 @@
-import { google } from "googleapis";
+import { google, drive_v3 } from "googleapis";
 import { db } from "@/db";
 import { googleDriveTokens } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -44,8 +44,8 @@ export async function exchangeCodeForTokens(
   scope: string;
 }> {
   const oauth2Client = getOAuth2Client(clientId, clientSecret);
-  
-  const { tokens } = await oauth2Client.exchangeCodeForToken({
+
+  const { tokens } = await oauth2Client.getToken({
     code,
     redirect_uri: redirectUri,
   });
@@ -73,22 +73,22 @@ export async function storeGoogleDriveTokens(
   expiresAt?: Date,
   scope?: string
 ) {
-  const id = `gdt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  
+  const id = `gdt_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+
   await db.insert(googleDriveTokens).values({
     id,
     userId,
     workspaceId,
     accessToken,
-    refreshToken: refreshToken,
+    refreshToken,
     tokenType,
     expiresAt: expiresAt || null,
     scope: scope || "",
   }).onConflictDoUpdate({
-    target: googleDriveTokens.userId,
+    target: [googleDriveTokens.userId],
     set: {
       accessToken,
-      refreshToken: refreshToken,
+      refreshToken,
       tokenType,
       expiresAt: expiresAt || null,
       scope: scope || "",
@@ -104,7 +104,7 @@ export async function getGoogleDriveTokens(userId: string) {
     .from(googleDriveTokens)
     .where(eq(googleDriveTokens.userId, userId))
     .limit(1);
-  
+
   return tokens;
 }
 
@@ -124,7 +124,7 @@ export async function refreshAccessToken(
   });
 
   const { credentials } = await oauth2Client.refreshAccessToken();
-  
+
   if (!credentials.access_token) {
     throw new Error("Failed to refresh access token");
   }
@@ -150,7 +150,7 @@ export async function getValidAccessToken(
   userId: string
 ): Promise<string> {
   const tokens = await getGoogleDriveTokens(userId);
-  
+
   if (!tokens) {
     throw new Error("Google Drive not connected");
   }
@@ -158,9 +158,10 @@ export async function getValidAccessToken(
   // Check if token is expired (with 5-minute buffer)
   const now = new Date();
   const expiresAt = tokens.expiresAt ? new Date(tokens.expiresAt) : null;
-  
-  if (expiresAt && expiresAt <= now) {
-    // Token expired, refresh it
+  const bufferTime = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+  if (expiresAt && expiresAt.getTime() - now.getTime() <= bufferTime) {
+    // Token expired or about to expire, refresh it
     return await refreshAccessToken(clientId, clientSecret, tokens);
   }
 
@@ -173,7 +174,7 @@ export async function listGoogleDriveFiles(
   clientSecret: string,
   userId: string,
   folderId?: string
-): Promise<{
+): Promise<Array<{
   id: string;
   name: string;
   mimeType: string;
@@ -181,15 +182,18 @@ export async function listGoogleDriveFiles(
   size?: number;
   modifiedTime: string;
   parents?: string[];
-}[]> {
+}>> {
   const accessToken = await getValidAccessToken(clientId, clientSecret, userId);
-  
+
+  const oauth2Client = getOAuth2Client(clientId, clientSecret);
+  oauth2Client.setCredentials({ access_token: accessToken });
+
   const drive = google.drive({
     version: "v3",
-    auth: accessToken,
+    auth: oauth2Client,
   });
 
-  const params: any = {
+  const params: drive_v3.Params$Resource$Files$List = {
     pageSize: 50,
     fields: "nextPageToken, files(id, name, mimeType, thumbnailLink, size, modifiedTime, parents)",
     orderBy: "modifiedTime desc",
@@ -202,7 +206,25 @@ export async function listGoogleDriveFiles(
   }
 
   const response = await drive.files.list(params);
-  return response.data.files || [];
+  const files = response.data.files || [];
+
+  return files.map((file): {
+    id: string;
+    name: string;
+    mimeType: string;
+    thumbnailLink?: string;
+    size?: number;
+    modifiedTime: string;
+    parents?: string[];
+  } => ({
+    id: file.id!,
+    name: file.name!,
+    mimeType: file.mimeType!,
+    thumbnailLink: file.thumbnailLink,
+    size: file.size ? Number(file.size) : undefined,
+    modifiedTime: file.modifiedTime || new Date().toISOString(),
+    parents: file.parents,
+  }));
 }
 
 // Get file metadata from Google Drive
@@ -211,12 +233,15 @@ export async function getGoogleDriveFile(
   clientSecret: string,
   userId: string,
   fileId: string
-) {
+): Promise<drive_v3.Schema$File> {
   const accessToken = await getValidAccessToken(clientId, clientSecret, userId);
-  
+
+  const oauth2Client = getOAuth2Client(clientId, clientSecret);
+  oauth2Client.setCredentials({ access_token: accessToken });
+
   const drive = google.drive({
     version: "v3",
-    auth: accessToken,
+    auth: oauth2Client,
   });
 
   const response = await drive.files.get({
@@ -235,10 +260,13 @@ export async function downloadGoogleDriveFile(
   fileId: string
 ): Promise<Buffer> {
   const accessToken = await getValidAccessToken(clientId, clientSecret, userId);
-  
+
+  const oauth2Client = getOAuth2Client(clientId, clientSecret);
+  oauth2Client.setCredentials({ access_token: accessToken });
+
   const drive = google.drive({
     version: "v3",
-    auth: accessToken,
+    auth: oauth2Client,
   });
 
   const response = await drive.files.get(
@@ -246,10 +274,16 @@ export async function downloadGoogleDriveFile(
       fileId,
       alt: "media",
     },
-    { responseType: "arraybuffer" }
+    { responseType: "stream" }
   );
 
-  return Buffer.from(response.data as ArrayBuffer);
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    const stream = response.data as unknown as NodeJS.ReadableStream;
+    stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", reject);
+  });
 }
 
 // Disconnect Google Drive

@@ -1385,3 +1385,37 @@ export type AssetLibraryItem = typeof assetLibrary.$inferSelect;
 export type NewAssetLibraryItem = typeof assetLibrary.$inferInsert;
 export type CmsMenu = typeof cmsMenus.$inferSelect;
 export type NewCmsMenu = typeof cmsMenus.$inferInsert;
+
+// ============================================================================
+// 12) Google Drive Integration - OAuth tokens for Google Drive access
+// ============================================================================
+
+export const googleDriveTokens = pgTable("google_drive_tokens", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  tokenType: text("token_type").notNull().default("Bearer"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  scope: text("scope"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+}, (table) => ({
+  userIdx: uniqueIndex("google_drive_tokens_user_idx").on(table.userId),
+  workspaceIdx: index("google_drive_tokens_workspace_idx").on(table.workspaceId),
+}));
+
+export type GoogleDriveToken = typeof googleDriveTokens.$inferSelect;
+export type NewGoogleDriveToken = typeof googleDriveTokens.$inferInsert;
+
+
+ 
